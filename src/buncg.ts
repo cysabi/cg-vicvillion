@@ -69,27 +69,30 @@ export default class BunCG<S extends Readonly<Record<string, any>>> {
     };
   }
 
-  async handleAction({ action, payload }: MessageAction) {
-    const resolve = this.actions?.[action];
-    if (!resolve) return;
-
-    let draft: S;
+  handleAction({ action, payload }: MessageAction) {
+    const mutate = this.actions?.[action];
+    if (!mutate) return;
     if (action.endsWith("Async")) {
-      const subresolve = await (resolve as InputActionAsync<S>)(payload);
-      draft = this.createDraft();
-      subresolve(draft);
+      const mutateAsync = mutate as InputActionAsync<S>;
+      mutateAsync(payload).then((m) => this.handleActionMutate(m));
     } else {
-      draft = this.createDraft();
-      resolve(draft, payload);
+      this.handleActionMutate(mutate, payload);
     }
+  }
+
+  handleActionMutate(mutate: InputAction<S>, payload?: any) {
+    const draft = this.createDraft();
+    mutate(draft, payload);
+
     const toEmit: Emit<S>[] = [];
     this.watchers.forEach(({ ws, id, cursor }) => {
       const oldState = this.stateAt(cursor);
       const newState = this.stateAt(cursor, draft);
-      if (Bun.deepEquals(oldState, newState)) {
+      if (!Bun.deepEquals(oldState, newState)) {
         toEmit.push({ ws, id, state: newState });
       }
     });
+
     this.finishDraft(draft);
     toEmit.forEach((e) => this.emit(e));
   }
