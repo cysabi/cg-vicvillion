@@ -14,7 +14,7 @@ type State = {
   };
 };
 
-const model = new BunCG<State>({
+const cg = new BunCG<State>({
   state: {
     flavorText: "flavor test",
     scoreboard: {
@@ -30,12 +30,12 @@ const model = new BunCG<State>({
   },
   actions: {
     updateScore(draft, payload: { index: 0 | 1; value: number }) {
-      draft.scoreboard[payload.index].score = payload.value;
+      draft.setIn(["scoreboard", payload.index, "score"], payload.value);
     },
     setText(draft, payload) {
-      draft.flavorText = payload;
+      draft.setIn(["flavorText"], payload);
     },
   },
 });
 
-model.serve();
+cg.serve();

@@ -1,5 +1,5 @@
 import type { ServerWebSocket, WebSocketHandler } from "bun";
-import { klona } from "klona/json";
+import { fromJS } from "immutable";
 
 type Input<S> = {
   state: S;
@@ -8,10 +8,13 @@ type Input<S> = {
     [key: `${string}Async`]: InputActionAsync<S>;
   };
 };
-type InputAction<S> = (draft: S, payload: MessageAction["payload"]) => void;
+type InputAction<S> = (
+  draft: Immutable.FromJS<S>,
+  payload: MessageAction["payload"]
+) => void;
 type InputActionAsync<S> = (
   payload: MessageAction["payload"]
-) => Promise<(draft: S) => void>;
+) => Promise<(draft: Immutable.FromJS<S>) => void>;
 
 export type Message = MessageAction | MessageWatch;
 export type MessageAction = {
@@ -26,23 +29,23 @@ export type Watcher = {
   ws: ServerWebSocket;
 } & Watch;
 export type Watch = {
-  cursor: string;
+  cursor: string[];
   id: string;
 };
-export type Emit<S> = {
+export type Emit = {
   ws: ServerWebSocket;
   id: string;
-  state: S | S[keyof S];
+  state: any;
 };
 
-export default class BunCG<S extends Readonly<Record<string, any>>> {
+export default class BunCG<S extends Record<string, any>> {
   state;
   actions;
   watchers: Watcher[];
   websocket: WebSocketHandler;
 
   constructor(model: Input<S>) {
-    this.state = Object.freeze(model.state);
+    this.state = fromJS(model.state);
     this.actions = model.actions;
     this.watchers = [];
     this.websocket = {
@@ -81,32 +84,32 @@ export default class BunCG<S extends Readonly<Record<string, any>>> {
   }
 
   handleActionMutate(mutate: InputAction<S>, payload?: any) {
-    const draft = this.createDraft();
-    mutate(draft, payload);
+    const mutated = this.state.withMutations((draft) => mutate(draft, payload));
 
-    const toEmit: Emit<S>[] = [];
+    // queue events
+    const events: Emit[] = [];
     this.watchers.forEach(({ ws, id, cursor }) => {
-      const oldState = this.stateAt(cursor);
-      const newState = this.stateAt(cursor, draft);
-      if (!Bun.deepEquals(oldState, newState)) {
-        toEmit.push({ ws, id, state: newState });
+      const state = mutated.getIn(cursor);
+      if (state !== this.state.getIn(cursor)) {
+        events.push({ ws, id, state });
       }
     });
 
-    this.finishDraft(draft);
-    toEmit.forEach((e) => this.emit(e));
+    // set new state, then emit queued events
+    this.state = mutated;
+    events.forEach((e) => this.emit(e));
   }
 
   handleWatch({ id, cursor }: MessageWatch, ws: ServerWebSocket) {
     this.watchers.push({ ws, id, cursor });
-    this.emit({ ws, id, state: this.stateAt(cursor) });
+    this.emit({ ws, id, state: this.state.getIn(cursor) });
   }
 
   handleUnwatch({ id }: MessageWatch) {
     this.watchers = this.watchers.filter((watcher) => !(watcher.id === id));
   }
 
-  emit({ ws, id, state }: Emit<S>) {
+  emit({ ws, id, state }: Emit) {
     ws.send(
       JSON.stringify({
         type: "emit",
@@ -114,20 +117,6 @@ export default class BunCG<S extends Readonly<Record<string, any>>> {
         state,
       })
     );
-  }
-
-  stateAt(cursor: string = "", baseState = this.state) {
-    return cursor
-      .split(".")
-      .reduce((state, path) => (path ? state[path] : state), baseState);
-  }
-
-  createDraft() {
-    return klona(this.state);
-  }
-
-  finishDraft(draft: S) {
-    this.state = Object.freeze(draft);
   }
 
   serve(port = 2513) {

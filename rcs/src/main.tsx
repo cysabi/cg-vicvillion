@@ -55,7 +55,12 @@ const App = () => {
       <div className="flex gap-2">
         <button
           onClick={() => {
-            cg.act("setText", `hehe its ${new Date().getTime() / 1000}`);
+            cg.act(
+              "setText",
+              `hehe its ${(new Date().getTime() / 1000)
+                .toString()
+                .slice(0, 11)}`
+            );
           }}
           className="bg-slate-300 rounded-md p-2 font-medium"
         >

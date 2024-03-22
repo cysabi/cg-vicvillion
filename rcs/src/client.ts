@@ -25,7 +25,6 @@ export class Client {
   }
 
   handleEmit(data: MessageEmit) {
-    console.log(this.listeners);
     this.listeners[data.id](data.state);
   }
 
@@ -33,8 +32,7 @@ export class Client {
     this.send({ type: "action", action, payload });
   }
 
-  watch(c: string | string[], callback: (state: unknown) => void) {
-    const cursor = Array.isArray(c) ? c.join(".") : c;
+  watch(cursor: string[], callback: (state: unknown) => void) {
     const id = "listener_" + Math.random().toString(16).slice(2);
 
     this.listeners[id] = callback;
