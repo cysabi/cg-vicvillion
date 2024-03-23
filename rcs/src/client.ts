@@ -1,10 +1,3 @@
-export type Message = MessageEmit;
-export type MessageEmit = {
-  type: "emit";
-  id: string;
-  state: unknown;
-};
-
 export class Client {
   ws: WebSocket;
   listeners: { [id: string]: (state: unknown) => void };
@@ -15,7 +8,7 @@ export class Client {
     this.listeners = {};
 
     this.ws.addEventListener("message", (event) => {
-      const data: Message = JSON.parse(event.data);
+      const data = JSON.parse(event.data);
 
       switch (data.type) {
         case "emit":
@@ -24,7 +17,7 @@ export class Client {
     });
   }
 
-  handleEmit(data: MessageEmit) {
+  handleEmit(data: { type: "emit"; id: string; state: unknown }) {
     this.listeners[data.id](data.state);
   }
 

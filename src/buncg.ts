@@ -1,5 +1,5 @@
 import type { ServerWebSocket, WebSocketHandler } from "bun";
-import { fromJS } from "immutable";
+import Immutable, { fromJS } from "immutable";
 
 type Input<S> = {
   state: S;
@@ -38,28 +38,28 @@ export type Emit = {
   state: any;
 };
 
-export default class BunCG<S extends Record<string, any>> {
-  state;
-  actions;
-  watchers: Watcher[];
-  websocket: WebSocketHandler;
+export default class BunCG<S extends {}> {
+  _state: Immutable.FromJS<S>;
+  _actions;
+  _watchers: Watcher[];
+  _websocket: WebSocketHandler;
 
   constructor(model: Input<S>) {
-    this.state = fromJS(model.state);
-    this.actions = model.actions;
-    this.watchers = [];
-    this.websocket = {
+    this._state = fromJS(model.state);
+    this._actions = model.actions;
+    this._watchers = [];
+    this._websocket = {
       message: (ws, msg: string) => {
         console.log(`ws ~ message ~ ${msg}`);
         const data: Message = JSON.parse(msg);
 
         switch (data.type) {
           case "action":
-            return this.handleAction(data);
+            return this._handleAction(data);
           case "watch":
-            return this.handleWatch(data, ws);
+            return this._handleWatch(data, ws);
           case "unwatch":
-            return this.handleUnwatch(data);
+            return this._handleUnwatch(data);
         }
       },
       open: (ws) => {
@@ -67,49 +67,53 @@ export default class BunCG<S extends Record<string, any>> {
       },
       close: (ws) => {
         console.log("ws ~ close");
-        this.watchers = this.watchers.filter((watcher) => !(watcher.ws === ws));
+        this._watchers = this._watchers.filter(
+          (watcher) => !(watcher.ws === ws)
+        );
       },
     };
   }
 
-  handleAction({ action, payload }: MessageAction) {
-    const mutate = this.actions?.[action];
+  _handleAction({ action, payload }: MessageAction) {
+    const mutate = this._actions?.[action];
     if (!mutate) return;
     if (action.endsWith("Async")) {
       const mutateAsync = mutate as InputActionAsync<S>;
-      mutateAsync(payload).then((m) => this.handleActionMutate(m));
+      mutateAsync(payload).then((m) => this._handleActionMutate(m));
     } else {
-      this.handleActionMutate(mutate, payload);
+      this._handleActionMutate(mutate, payload);
     }
   }
 
-  handleActionMutate(mutate: InputAction<S>, payload?: any) {
-    const mutated = this.state.withMutations((draft) => mutate(draft, payload));
+  _handleActionMutate(mutate: InputAction<S>, payload?: any) {
+    const mutated = this._state.withMutations((draft) =>
+      mutate(draft, payload)
+    );
 
     // queue events
     const events: Emit[] = [];
-    this.watchers.forEach(({ ws, id, cursor }) => {
+    this._watchers.forEach(({ ws, id, cursor }) => {
       const state = mutated.getIn(cursor);
-      if (state !== this.state.getIn(cursor)) {
+      if (state !== this._state.getIn(cursor)) {
         events.push({ ws, id, state });
       }
     });
 
     // set new state, then emit queued events
-    this.state = mutated;
-    events.forEach((e) => this.emit(e));
+    this._state = mutated;
+    events.forEach((e) => this._emit(e));
   }
 
-  handleWatch({ id, cursor }: MessageWatch, ws: ServerWebSocket) {
-    this.watchers.push({ ws, id, cursor });
-    this.emit({ ws, id, state: this.state.getIn(cursor) });
+  _handleWatch({ id, cursor }: MessageWatch, ws: ServerWebSocket) {
+    this._watchers.push({ ws, id, cursor });
+    this._emit({ ws, id, state: this._state.getIn(cursor) });
   }
 
-  handleUnwatch({ id }: MessageWatch) {
-    this.watchers = this.watchers.filter((watcher) => !(watcher.id === id));
+  _handleUnwatch({ id }: MessageWatch) {
+    this._watchers = this._watchers.filter((watcher) => !(watcher.id === id));
   }
 
-  emit({ ws, id, state }: Emit) {
+  _emit({ ws, id, state }: Emit) {
     ws.send(
       JSON.stringify({
         type: "emit",
@@ -119,13 +123,19 @@ export default class BunCG<S extends Record<string, any>> {
     );
   }
 
+  /* public methods */
+
+  act(serverAction: (draft: Immutable.FromJS<S>) => void) {
+    this._handleActionMutate(serverAction);
+  }
+
   serve(port = 2513) {
     Bun.serve({
       port,
       fetch(req, server) {
         server.upgrade(req);
       },
-      websocket: this.websocket,
+      websocket: this._websocket,
     });
   }
 }
