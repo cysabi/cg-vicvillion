@@ -1,5 +1,6 @@
 import type { ServerWebSocket, WebSocketHandler } from "bun";
-import Immutable, { fromJS } from "immutable";
+import { Database } from "bun:sqlite";
+import Immutable from "immutable";
 
 type Input<S> = {
   state: S;
@@ -39,13 +40,15 @@ export type Emit = {
 };
 
 export default class BunCG<S extends {}> {
+  _db;
   _state: Immutable.FromJS<S>;
   _actions;
   _watchers: Watcher[];
   _websocket: WebSocketHandler;
 
   constructor(model: Input<S>) {
-    this._state = fromJS(model.state);
+    this._db = new Database("buncg.sqlite");
+    this._state = Immutable.fromJS(model.state);
     this._actions = model.actions;
     this._watchers = [];
     this._websocket = {
@@ -90,6 +93,10 @@ export default class BunCG<S extends {}> {
       mutate(draft, payload)
     );
 
+    // after mutate, build a new delta tree
+    const tree = this._delta(this._state, mutated);
+    // persist new delta tree
+
     // queue events
     const events: Emit[] = [];
     this._watchers.forEach(({ ws, id, cursor }) => {
@@ -102,6 +109,42 @@ export default class BunCG<S extends {}> {
     // set new state, then emit queued events
     this._state = mutated;
     events.forEach((e) => this._emit(e));
+  }
+
+  _delta_delete = "$$__buncg.delete__$$";
+  _delta(state: any, mutated: any, path: string = "") {
+    if (!Immutable.isImmutable(mutated) && mutated instanceof Object)
+      throw new Error(
+        `State must only contain immutables! Found ${mutated} at ${path}`
+      );
+    if (mutated === this._delta_delete)
+      throw new Error(
+        `Invalid string! ${mutated} is a reserved keyword. If you are trying to delete a value, simply do so in the action callback.`
+      );
+    if (mutated === state) return;
+    if (mutated == undefined) return this._delta_delete;
+
+    let delta = mutated;
+    if ((Immutable.isKeyed(mutated), Immutable.isKeyed(state))) {
+      delta = {};
+      const keys = new Set();
+      for (const key in state) keys.add(key);
+      for (const key in mutated) keys.add(key);
+      keys.forEach((key: any) => {
+        delta[key] = this._delta(
+          state.get(key),
+          mutated.get(key),
+          path + "." + key
+        );
+      });
+    }
+    if (Immutable.isIndexed(mutated) && Immutable.isIndexed(state)) {
+      delta = [];
+      for (let i = 0; i < Math.max(state.count(), mutated.count()); i++) {
+        delta.push(this._delta(state.get(i), mutated.get(i), path + "." + i));
+      }
+    }
+    return delta;
   }
 
   _handleWatch({ id, cursor }: MessageWatch, ws: ServerWebSocket) {
