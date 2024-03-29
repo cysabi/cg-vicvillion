@@ -57,9 +57,7 @@ const App = () => {
           onClick={() => {
             cg.act(
               "setText",
-              `hehe its ${(new Date().getTime() / 1000)
-                .toString()
-                .slice(0, 11)}`
+              `hehe its ${(new Date().getTime() / 1000).toString()}`
             );
           }}
           className="bg-slate-300 rounded-md p-2 font-medium"

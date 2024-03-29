@@ -1,4 +1,5 @@
 import type { ServerWebSocket, WebSocketHandler } from "bun";
+import { readFileSync } from "node:fs";
 import Immutable from "immutable";
 
 type Input<S> = {
@@ -39,15 +40,15 @@ export type Emit = {
 };
 
 export default class BunCG<S extends {}> {
+  #filepath = "buncg.state";
   _state: Immutable.FromJS<S>;
   _actions;
-  _watchers: Watcher[];
   _websocket: WebSocketHandler;
+  _watchers: Watcher[];
 
-  constructor(model: Input<S>) {
-    this._state = Immutable.fromJS(model.state);
-    this._actions = model.actions;
-    this._watchers = [];
+  constructor(input: Input<S>) {
+    this._state = Immutable.fromJS(this._withPersisted(input.state));
+    this._actions = input.actions;
     this._websocket = {
       message: (ws, msg: string) => {
         console.log(`ws ~ message ~ ${msg}`);
@@ -72,6 +73,7 @@ export default class BunCG<S extends {}> {
         );
       },
     };
+    this._watchers = [];
   }
 
   _handleAction({ action, payload }: MessageAction) {
@@ -99,8 +101,9 @@ export default class BunCG<S extends {}> {
       }
     });
 
-    // set new state, then emit queued events
+    // set new state, persist, then emit queued events
     this._state = mutated;
+    this._persist();
     events.forEach((e) => this._emit(e));
   }
 
@@ -121,6 +124,18 @@ export default class BunCG<S extends {}> {
         state,
       })
     );
+  }
+
+  _withPersisted(fallback: unknown) {
+    try {
+      return JSON.parse(readFileSync(this.#filepath, "utf8"));
+    } catch {
+      return fallback;
+    }
+  }
+
+  _persist() {
+    Bun.write(this.#filepath, JSON.stringify(this._state));
   }
 
   /* public methods */
