@@ -1,14 +1,24 @@
+import { pack, unpack } from "msgpackr";
+
+type Emit = {
+  type: "emit";
+  id: string;
+  patches: Array<
+    { path?: undefined; value: any } | { path: string[]; value?: any }
+  >;
+};
+
 export class Client {
   ws: WebSocket;
   listeners: { [id: string]: (state: unknown) => void };
   [any: string]: any;
 
-  constructor(url = `ws://${location.host}`) {
-    this.ws = new WebSocket(url);
+  constructor() {
+    this.ws = new WebSocket(`ws://${location.host}`);
     this.listeners = {};
-
+    this.ws.binaryType = "arraybuffer";
     this.ws.addEventListener("message", (event) => {
-      const data = JSON.parse(event.data);
+      const data = unpack(event.data);
 
       switch (data.type) {
         case "emit":
@@ -17,8 +27,9 @@ export class Client {
     });
   }
 
-  handleEmit(data: { type: "emit"; id: string; state: unknown }) {
-    this.listeners[data.id](data.state);
+  handleEmit(data: Emit) {
+    // has own state,
+    this.listeners[data.id](data);
   }
 
   act(action: string, payload: any) {
@@ -45,6 +56,6 @@ export class Client {
         resolve();
       }
     });
-    this.ws.send(JSON.stringify(obj));
+    this.ws.send(pack(obj));
   }
 }

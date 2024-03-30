@@ -1,6 +1,6 @@
 import type { ServerWebSocket, WebSocketHandler } from "bun";
 import { open } from "lmdb";
-import { Encoder } from "msgpackr";
+import { pack, unpack } from "msgpackr";
 import Immutable from "immutable";
 
 type Input<S> = {
@@ -46,15 +46,8 @@ export type Emit = {
 
 export default class BunCG<S extends {}> {
   #filepath = "buncg.state";
-  #structs = {
-    $: Symbol.for("$structs"),
-  } as {
-    $: symbol;
-    get: () => any[];
-    set: (s: any[0]) => void;
-  };
+  #structs = Symbol.for("$structs");
   _db;
-  _encoder;
   _state: Immutable.FromJS<S>;
   _actions;
   _websocket: WebSocketHandler;
@@ -62,15 +55,8 @@ export default class BunCG<S extends {}> {
 
   constructor(input: Input<S>) {
     this._db = open(this.#filepath, {
-      sharedStructuresKey: this.#structs.$,
+      sharedStructuresKey: this.#structs,
     });
-    this.#structs.get = () => this._db.get(this.#structs.$) || [];
-    this.#structs.set = (s) => this._db.putSync(this.#structs.$, s);
-    this._encoder = new Encoder({
-      getStructures: this.#structs.get,
-      saveStructures: this.#structs.set,
-    });
-
     this._state = Immutable.fromJS(input.state).withMutations((draft) => {
       this._db.getRange({ start: 0 }).forEach(({ value }) =>
         value.forEach((patch: PatchPathed) => {
@@ -87,9 +73,10 @@ export default class BunCG<S extends {}> {
     });
     this._actions = input.actions;
     this._websocket = {
-      message: (ws, msg: string) => {
-        console.log(`ws ~ message ~ ${msg}`);
-        const data: Message = JSON.parse(msg);
+      message: (ws, msg: Buffer) => {
+        const data: Message = unpack(msg);
+
+        console.log(`ws ~ message ~ ${data}`);
 
         switch (data.type) {
           case "action":
@@ -205,15 +192,15 @@ export default class BunCG<S extends {}> {
   }
 
   _eventsEmit(...events: Emit[]) {
-    events.forEach(({ ws, id, patches }) => {
+    events.forEach(({ ws, id, patches }) =>
       ws.send(
-        this._encoder.encode({
+        pack({
           type: "emit",
           id,
           patches,
         })
-      );
-    });
+      )
+    );
   }
 
   _persistAppend(value: Patch[]) {
@@ -227,9 +214,9 @@ export default class BunCG<S extends {}> {
 
   _persistCollapse() {
     this._db.transactionSync(() => {
-      const structs = this.#structs.get();
+      const structs = this._db.get(this.#structs) || [];
       this._db.clearSync();
-      this.#structs.set(structs);
+      this._db.putSync(this.#structs, structs);
       this._db.putSync(0, [{ value: this._state }]);
     });
   }

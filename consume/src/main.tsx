@@ -46,10 +46,6 @@ const App = () => {
   const flavorText = cg.useState((s: any) => s.flavorText);
   const name = cg.useState((s: any) => s.scoreboard[0].name);
 
-  cg.ws.addEventListener("message", (event) => {
-    setLog([...log, "Received message: " + event.data]);
-  });
-
   return (
     <div className="flex flex-col w-full max-w-6xl mx-auto p-2 gap-2" id="feed">
       <div className="flex gap-2">
