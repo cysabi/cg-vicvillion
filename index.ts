@@ -1,4 +1,4 @@
-import BunCG from "./src/buncg";
+import BunCG from "./lib/buncg";
 
 type State = {
   flavorText: string;
