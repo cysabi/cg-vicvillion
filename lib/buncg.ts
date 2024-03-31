@@ -4,63 +4,69 @@ import { pack, unpack } from "msgpackr";
 import Immutable from "immutable";
 
 type Input<S> = {
-  state: S;
-  actions?: {
-    [key: string]: InputAction<S> | InputActionAsync<S>;
-    [key: `${string}Async`]: InputActionAsync<S>;
-  };
+  [key: string]: S[keyof S] | InputActions<S>[keyof InputActions<S>];
+} & S;
+type InputActions<S> = {
+  [key: string]: InputAction<S> | InputActionAsync<S>;
+  [key: `${string}Async`]: InputActionAsync<S>;
 };
-type InputAction<S> = (
-  draft: Immutable.FromJS<S>,
-  payload: MessageAction["payload"]
-) => void;
+type InputAction<S> = (draft: Immutable.FromJS<S>, payload: any) => void;
 type InputActionAsync<S> = (
-  payload: MessageAction["payload"]
+  payload: any
 ) => Promise<(draft: Immutable.FromJS<S>) => void>;
 
-export type Patch = RootPatch | PatchPathed;
-export type RootPatch = { path?: undefined; value: any };
-export type PatchPathed = { path: string[]; value?: any };
-
-export type Message = MessageAction | MessageWatch;
+export type Patch = { path: string[]; value?: any };
+export type Message = MessageInit | MessageAction;
+export type MessageInit = {
+  type: "init";
+  cursors: Patch["path"][];
+};
 export type MessageAction = {
   type: "action";
   action: string;
   payload: any;
 };
-export type MessageWatch = {
-  type: "watch" | "unwatch";
-} & Watch;
-export type Watcher = {
-  ws: ServerWebSocket;
-} & Watch;
-export type Watch = {
-  cursor: string[];
-  id: string;
-};
 export type Emit = {
-  ws: ServerWebSocket;
-  id: string;
-  patches: Patch[];
+  ws?: ServerWebSocket;
+  patches?: Patch[];
 };
 
 export default class BunCG<S extends {}> {
-  #filepath = "buncg.state";
-  #structs = Symbol.for("$structs");
-  _db;
-  _state: Immutable.FromJS<S>;
-  _actions;
-  _websocket: WebSocketHandler;
-  _watchers: Watcher[];
+  #db;
+  #actions: InputActions<S> = {};
+  #state: Immutable.FromJS<S>;
+  #clients: Map<ServerWebSocket, MessageInit["cursors"]>;
+  #websocket: WebSocketHandler;
 
-  constructor(input: Input<S>) {
-    this._db = open(this.#filepath, {
-      sharedStructuresKey: this.#structs,
+  act(serverAction: (draft: Immutable.FromJS<S>) => void) {
+    this.#handleActionMutate(serverAction);
+  }
+
+  serve(port = 2513) {
+    Bun.serve({
+      port,
+      fetch(req, server) {
+        server.upgrade(req);
+      },
+      websocket: this.#websocket,
     });
-    this._state = Immutable.fromJS(input.state).withMutations((draft) => {
-      this._db.getRange({ start: 0 }).forEach(({ value }) =>
-        value.forEach((patch: PatchPathed) => {
-          if ((patch.path || []).length === 0) {
+  }
+
+  constructor(input: Input<S>, options = { db: "buncg.state" }) {
+    this.#db = open(options.db, { sharedStructuresKey: Symbol.for("structs") });
+    Object.entries(input).filter(([key, value]) => {
+      if (typeof value === "function") {
+        this.#actions[key] = value as InputAction<S>;
+        delete input[key];
+      }
+    });
+    this.#db.getRange({ start: 0 }).forEach((row) => {
+      console.log(row.key, row.value);
+    });
+    this.#state = Immutable.fromJS(input).withMutations((draft) => {
+      this.#db.getRange({ start: 0 }).forEach(({ value }) =>
+        value.forEach((patch: Patch) => {
+          if (patch.path.length === 0) {
             draft.clear();
             draft.merge(Immutable.fromJS(patch.value));
           } else if (patch.value === undefined) {
@@ -71,20 +77,23 @@ export default class BunCG<S extends {}> {
         })
       );
     });
-    this._actions = input.actions;
-    this._websocket = {
+    this.#persistCollapse();
+    console.log("COLLAPSED");
+    this.#db.getRange({ start: 0 }).forEach((row) => {
+      console.log(row.key, row.value);
+    });
+    this.#clients = new Map();
+    this.#websocket = {
       message: (ws, msg: Buffer) => {
         const data: Message = unpack(msg);
 
-        console.log(`ws ~ message ~ ${data}`);
+        console.log(`ws ~ message ~ ${JSON.stringify(data)}`);
 
         switch (data.type) {
+          case "init":
+            return this.#handleInit(data, ws);
           case "action":
-            return this._handleAction(data);
-          case "watch":
-            return this._handleWatch(data, ws);
-          case "unwatch":
-            return this._handleUnwatch(data);
+            return this.#handleAction(data);
         }
       },
       open: (ws) => {
@@ -92,57 +101,45 @@ export default class BunCG<S extends {}> {
       },
       close: (ws) => {
         console.log("ws ~ close");
-        this._watchers = this._watchers.filter(
-          (watcher) => !(watcher.ws === ws)
-        );
+        this.#clients.delete(ws);
       },
     };
-    this._watchers = [];
   }
 
-  _handleAction({ action, payload }: MessageAction) {
-    const mutate = this._actions?.[action];
+  #handleInit({ cursors }: MessageInit, ws: ServerWebSocket) {
+    this.#clients.set(ws, cursors || [[]]);
+    this.#emit({ ws });
+  }
+
+  #handleAction({ action, payload }: MessageAction) {
+    const mutate = this.#actions?.[action];
     if (!mutate) return;
     if (action.endsWith("Async")) {
       const mutateAsync = mutate as InputActionAsync<S>;
-      mutateAsync(payload).then((m) => this._handleActionMutate(m));
+      mutateAsync(payload).then((m) => this.#handleActionMutate(m));
     } else {
-      this._handleActionMutate(mutate, payload);
+      this.#handleActionMutate(mutate, payload);
     }
   }
 
-  _handleActionMutate(mutate: InputAction<S>, payload?: any) {
-    const mutated = this._state.withMutations((draft) =>
+  #handleActionMutate(mutate: InputAction<S>, payload?: any) {
+    const mutated = this.#state.withMutations((draft) =>
       mutate(draft, payload)
     );
-    const patches = this._deltaPatches(this._state, mutated);
-    const events = this._eventsTrigger(mutated, patches);
+    const patches = this.#deltaPatches(this.#state, mutated);
+    console.log("patches1", patches);
 
-    this._state = mutated;
-
-    this._persistAppend(patches);
-    this._eventsEmit(...events);
+    this.#state = mutated;
+    this.#persistAppend(patches);
+    this.#emit({ patches });
   }
 
-  _handleWatch({ id, cursor }: MessageWatch, ws: ServerWebSocket) {
-    this._watchers.push({ ws, id, cursor });
-    this._eventsEmit({
-      ws,
-      id,
-      patches: [{ path: cursor, value: this._state.getIn(cursor) }],
-    });
-  }
-
-  _handleUnwatch({ id }: MessageWatch) {
-    this._watchers = this._watchers.filter((watcher) => !(watcher.id === id));
-  }
-
-  _deltaPatches(
+  #deltaPatches(
     state: any,
     mutated: any,
     path: Patch["path"] = [],
-    patches: PatchPathed[] = []
-  ): PatchPathed[] {
+    patches: Patch[] = []
+  ): Patch[] {
     if (mutated instanceof Object && !Immutable.isImmutable(mutated))
       throw new Error(
         `State must only contain immutables! Found ${mutated} at ${path}`
@@ -150,90 +147,75 @@ export default class BunCG<S extends {}> {
     if (mutated === state) return patches;
     if (Immutable.isKeyed(mutated) && Immutable.isKeyed(state)) {
       const keys = new Set();
-      for (const key in state) keys.add(key);
-      for (const key in mutated) keys.add(key);
+      for (const key of state.keys()) keys.add(key);
+      for (const key of mutated.keys()) keys.add(key);
       keys.forEach((key: any) => {
-        this._deltaPatches(
+        this.#deltaPatches(
           state.get(key),
           mutated.get(key),
-          path.concat(key.toString())
+          path.concat(key.toString()),
+          patches
         );
       });
     } else if (Immutable.isIndexed(mutated) && Immutable.isIndexed(state)) {
       for (let i = 0; i < Math.max(state.count(), mutated.count()); i++) {
-        this._deltaPatches(
+        this.#deltaPatches(
           state.get(i),
           mutated.get(i),
-          path.concat(i.toString())
+          path.concat(i.toString()),
+          patches
         );
       }
-    } else if (mutated == undefined) {
+    } else if (mutated === undefined) {
       patches.push({ path });
+    } else if (typeof mutated === "object") {
+      console.log("ERROR NOT PRIMITIVE!!?!", mutated, typeof mutated);
     } else {
       patches.push({ path, value: mutated });
     }
     return patches;
   }
 
-  _eventsTrigger(mutated: Immutable.FromJS<S>, patches: PatchPathed[]) {
-    const events: Emit[] = [];
-    this._watchers.forEach(({ ws, id, cursor }) => {
-      if (mutated.getIn(cursor) !== this._state.getIn(cursor)) {
-        events.push({
-          ws,
-          id,
-          patches: patches.filter((patch) =>
-            cursor.every((c, i) => [c, undefined].includes(patch.path?.[i]))
-          ),
-        });
-      }
-    });
-    return events;
-  }
-
-  _eventsEmit(...events: Emit[]) {
-    events.forEach(({ ws, id, patches }) =>
+  #emit({ ws, patches }: Emit) {
+    (ws
+      ? ([[ws, this.#clients.get(ws)]] as const)
+      : Array.from(this.#clients.entries())
+    ).forEach(([ws, cursors]) => {
       ws.send(
         pack({
           type: "emit",
-          id,
-          patches,
+          patches: patches
+            ? patches.filter((patch) =>
+                cursors?.some((cursor) =>
+                  cursor.every((c, i) =>
+                    [c, undefined].includes(patch.path?.[i])
+                  )
+                )
+              )
+            : cursors?.map((c) => ({
+                path: c,
+                value: this.#state.getIn(c),
+              })),
         })
-      )
-    );
-  }
-
-  _persistAppend(value: Patch[]) {
-    let last = this._db.getKeys({ reverse: true, limit: 1 }).asArray[0];
-    if (typeof last !== "number") {
-      this._db.put(0, [{ value: this._state }]);
-      last = 0;
-    }
-    this._db.put(last + 1, value);
-  }
-
-  _persistCollapse() {
-    this._db.transactionSync(() => {
-      const structs = this._db.get(this.#structs) || [];
-      this._db.clearSync();
-      this._db.putSync(this.#structs, structs);
-      this._db.putSync(0, [{ value: this._state }]);
+      );
     });
   }
 
-  /* public methods */
-
-  act(serverAction: (draft: Immutable.FromJS<S>) => void) {
-    this._handleActionMutate(serverAction);
+  #persistAppend(value: Patch[]) {
+    let last = this.#db.getKeys({ reverse: true, limit: 1 }).asArray[0];
+    if (typeof last !== "number") {
+      this.#db.putSync(0, [{ path: [], value: this.#state }]);
+      last = 0;
+    }
+    this.#db.putSync(last + 1, value);
   }
 
-  serve(port = 2513) {
-    Bun.serve({
-      port,
-      fetch(req, server) {
-        server.upgrade(req);
-      },
-      websocket: this._websocket,
+  #persistCollapse() {
+    this.#db.transactionSync(() => {
+      const structs = this.#db.get(Symbol.for("structs")) || [];
+      this.#db.clearSync();
+      this.#db.putSync(Symbol.for("structs"), structs);
+      this.#db.putSync(0, [{ path: [], value: this.#state }]);
     });
   }
 }

@@ -15,26 +15,32 @@ type State = {
 };
 
 const cg = new BunCG<State>({
-  state: {
-    flavorText: "flavor test",
-    scoreboard: {
-      0: {
-        name: "apple",
-        score: 1,
-      },
-      1: {
-        name: "banana",
-        score: 2,
-      },
+  flavorText: "1",
+  scoreboard: {
+    0: {
+      name: "apple",
+      score: 1,
+    },
+    1: {
+      name: "banana",
+      score: 2,
     },
   },
-  actions: {
-    updateScore(draft, payload: { index: 0 | 1; value: number }) {
-      draft.setIn(["scoreboard", payload.index, "score"], payload.value);
-    },
-    setText(draft, payload) {
+  updateScore(draft, { index, name }) {
+    draft.setIn(
+      ["scoreboard", index.toString(), "score"],
+      (draft.getIn(["scoreboard", index.toString(), "score"]) as number) + 1
+    );
+    draft.setIn(["scoreboard", index, "name"], name);
+  },
+  setText(draft, payload) {
+    draft.setIn(["flavorText"], payload);
+  },
+  async setTextAsync(payload) {
+    await (() => new Promise((res) => setTimeout(res, 1000)));
+    return (draft) => {
       draft.setIn(["flavorText"], payload);
-    },
+    };
   },
 });
 
