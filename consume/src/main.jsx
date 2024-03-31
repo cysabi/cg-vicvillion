@@ -11,10 +11,12 @@ export const ClientProvider = ({ children }) => {
   const [state, setState] = useState();
 
   useEffect(() => {
-    return cg.watch((state) => {
-      console.log(state);
+    cg.dispatch = (state) => {
       setState(state);
-    });
+    };
+    return () => {
+      cg.dispatch = null;
+    };
   }, []);
 
   return (

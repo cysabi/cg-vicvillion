@@ -1,30 +1,23 @@
 import icepick from "icepick";
 import { pack, unpack } from "msgpackr";
 
-type Options<S> = { cursors?: string[][]; initialState?: S };
+type Options<S> = { scopes?: string[][]; initial?: S };
 
 export class Client<S> {
+  dispatch: null | ((state: S) => void) = null;
   #state: S;
-  #watcher: null | ((state: S) => void) = null;
   #ws: WebSocket;
 
   act(action: string, payload: any) {
     this.#send({ type: "action", action, payload });
   }
 
-  watch(callback: (state: S) => void) {
-    this.#watcher = callback;
-    return () => {
-      this.#watcher = null;
-    };
-  }
-
-  constructor({ cursors, initialState }: Options<S> = {}) {
-    this.#state = icepick.freeze(initialState || ({} as S));
+  constructor({ scopes, initial }: Options<S> = {}) {
+    this.#state = icepick.freeze(initial || ({} as S));
 
     this.#ws = new WebSocket("ws://localhost:2513");
     this.#ws.binaryType = "arraybuffer";
-    this.#send({ type: "init", cursors });
+    this.#send({ type: "init", scopes });
     this.#ws.addEventListener("message", (event) => {
       const data = unpack(event.data);
 
@@ -48,8 +41,8 @@ export class Client<S> {
         this.#state = icepick.unsetIn(this.#state, patch.path);
       }
     });
-    if (this.#watcher) {
-      this.#watcher(this.#state);
+    if (this.dispatch) {
+      this.dispatch(this.#state);
     }
   }
 
