@@ -34,7 +34,7 @@ export default class State<S> {
           this.#state = this.#proxify(patch.value);
         } else {
           patch.path.reduce((slice, p, i) => {
-            if (i !== patch.path.length) {
+            if (i !== patch.path.length - 1) {
               console.log("~~~~~~~~~~");
               console.log("patch", patch);
               console.log("set prop", slice[p]);
