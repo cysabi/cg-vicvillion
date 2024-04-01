@@ -1,37 +1,21 @@
-import BunCG from "./server/buncg";
+import BunCG from "./server/src";
 
-type State = {
-  flavorText: string;
-  scoreboard: {
-    0: {
-      name: string;
-      score: number;
-    };
-    1: {
-      name: string;
-      score: number;
-    };
-  };
-};
-
-const cg = new BunCG<State>({
-  flavorText: "1",
-  scoreboard: {
-    0: {
+const cg = new BunCG({
+  flavorText: "thingy",
+  scoreboard: [
+    {
       name: "apple",
       score: 1,
     },
-    1: {
+    {
       name: "banana",
       score: 2,
     },
-  },
-  updateScore(draft) {
-    draft.scoreboard[0].score += 1;
-    draft.scoreboard[1] = {
-      name: "poop",
-      score: Math.floor(Math.random() * 999),
-    };
+  ],
+  updateScore(draft, _) {
+    const w = draft.scoreboard.shift();
+    console.log(draft.scoreboard);
+    draft.scoreboard.push(w);
   },
 });
 

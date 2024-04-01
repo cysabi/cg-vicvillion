@@ -1,8 +1,6 @@
 import icepick from "icepick";
 import { pack, unpack } from "msgpackr";
 
-type Options<S> = { scopes?: string[][]; initial?: S; port?: number };
-
 export class Client<S> {
   dispatch: null | ((state: S) => void) = null;
   #state: S;
@@ -12,7 +10,11 @@ export class Client<S> {
     this.#send({ type: "action", action, payload });
   }
 
-  constructor({ scopes, initial, port = 2513 }: Options<S> = {}) {
+  constructor({
+    scopes,
+    initial,
+    port = 2513,
+  }: { scopes?: string[][]; initial?: S; port?: number } = {}) {
     this.#state = icepick.freeze(initial || ({} as S));
 
     this.#ws = new WebSocket(`ws://localhost:${port}`);

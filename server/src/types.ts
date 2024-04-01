@@ -7,7 +7,9 @@ export type InputActions<S> = {
   [key: string]: InputAction<S> | InputActionAsync<S>;
   [key: `${string}Async`]: InputActionAsync<S>;
 };
-export type InputAction<S> = (draft: S, payload: any) => void;
+export type InputAction<S> =
+  | ((draft: S) => void)
+  | ((draft: S, payload: any) => void);
 export type InputActionAsync<S> = (payload: any) => Promise<(draft: S) => void>;
 
 export type Patch = { path: string[]; value?: any };
@@ -22,8 +24,10 @@ export type MessageAction = {
   payload: any;
 };
 export type Emit = {
-  ws?: ServerWebSocket;
+  ws: ServerWebSocket;
   patches?: Patch[];
 };
 
 export type Clients = Map<ServerWebSocket, MessageInit["cursors"]>;
+
+export type { ServerWebSocket, WebSocketHandler } from "bun";

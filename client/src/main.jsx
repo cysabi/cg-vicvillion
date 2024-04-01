@@ -52,7 +52,16 @@ const App = () => {
         >
           Change score
           <span className="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
+            {state?.scoreboard?.[0].name}
+          </span>
+          <span className="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
             {state?.scoreboard?.[0].score}
+          </span>
+          <span className="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
+            {state?.scoreboard?.[1].name}
+          </span>
+          <span className="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
+            {state?.scoreboard?.[1].score}
           </span>
         </button>
       </div>
