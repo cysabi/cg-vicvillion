@@ -1,7 +1,7 @@
 import icepick from "icepick";
 import { pack, unpack } from "msgpackr";
 
-type Options<S> = { scopes?: string[][]; initial?: S };
+type Options<S> = { scopes?: string[][]; initial?: S; port?: number };
 
 export class Client<S> {
   dispatch: null | ((state: S) => void) = null;
@@ -12,10 +12,10 @@ export class Client<S> {
     this.#send({ type: "action", action, payload });
   }
 
-  constructor({ scopes, initial }: Options<S> = {}) {
+  constructor({ scopes, initial, port = 2513 }: Options<S> = {}) {
     this.#state = icepick.freeze(initial || ({} as S));
 
-    this.#ws = new WebSocket("ws://localhost:2513");
+    this.#ws = new WebSocket(`ws://localhost:${port}`);
     this.#ws.binaryType = "arraybuffer";
     this.#send({ type: "init", scopes });
     this.#ws.addEventListener("message", (event) => {

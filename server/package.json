@@ -12,7 +12,6 @@
   },
   "type": "module",
   "dependencies": {
-    "immutable": "^5.0.0-beta.5",
     "lmdb": "^3.0.3",
     "msgpackr": "^1.10.1"
   }

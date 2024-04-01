@@ -1,4 +1,4 @@
-import BunCG from "./lib/buncg";
+import BunCG from "./server/buncg";
 
 type State = {
   flavorText: string;
@@ -26,20 +26,11 @@ const cg = new BunCG<State>({
       score: 2,
     },
   },
-  updateScore(draft, { index, name }) {
-    draft.setIn(
-      ["scoreboard", index.toString(), "score"],
-      (draft.getIn(["scoreboard", index.toString(), "score"]) as number) + 1
-    );
-    draft.setIn(["scoreboard", index, "name"], name);
-  },
-  setText(draft, payload) {
-    draft.setIn(["flavorText"], payload);
-  },
-  async setTextAsync(payload) {
-    await (() => new Promise((res) => setTimeout(res, 1000)));
-    return (draft) => {
-      draft.setIn(["flavorText"], payload);
+  updateScore(draft) {
+    draft.scoreboard[0].score += 1;
+    draft.scoreboard[1] = {
+      name: "poop",
+      score: Math.floor(Math.random() * 999),
     };
   },
 });
