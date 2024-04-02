@@ -16,7 +16,7 @@ export type Patch = { path: string[]; value?: any };
 export type Message = MessageInit | MessageAction;
 export type MessageInit = {
   type: "init";
-  cursors: Patch["path"][];
+  scopes: Patch["path"][];
 };
 export type MessageAction = {
   type: "action";
@@ -28,6 +28,6 @@ export type Emit = {
   patches?: Patch[];
 };
 
-export type Clients = Map<ServerWebSocket, MessageInit["cursors"]>;
+export type Clients = Map<ServerWebSocket, MessageInit["scopes"]>;
 
 export type { ServerWebSocket, WebSocketHandler } from "bun";

@@ -25,12 +25,12 @@ export class Client<S> {
 
       switch (data.type) {
         case "emit":
-          return this.#handleEmit(data);
+          return this.#handleEmitted(data);
       }
     });
   }
 
-  #handleEmit(data: {
+  #handleEmitted(data: {
     type: "emit";
     patches: Array<{ path: string[]; value?: any }>;
   }) {

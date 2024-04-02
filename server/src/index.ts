@@ -76,8 +76,8 @@ export default class BunCG<S extends Record<string, any>> {
     };
   }
 
-  #handleInit({ cursors }: MessageInit, ws: ServerWebSocket) {
-    this.#clients.set(ws, cursors || [[]]);
+  #handleInit({ scopes }: MessageInit, ws: ServerWebSocket) {
+    this.#clients.set(ws, scopes || [[]]);
     this.#emit({ ws });
   }
 
@@ -104,14 +104,14 @@ export default class BunCG<S extends Record<string, any>> {
   }
 
   #emit({ ws, patches }: Emit) {
-    const cursors = this.#clients.get(ws);
+    const scopes = this.#clients.get(ws);
     return ws.send(
       pack({
         type: "emit",
         patches: patches
           ? patches.filter((patch) => {
-              return cursors?.some((cursor) => {
-                return cursor.every((c, i) => {
+              return scopes?.some((scope) => {
+                return scope.every((c, i) => {
                   if (patch.path?.[i] === undefined) {
                     return true;
                   }
@@ -119,7 +119,7 @@ export default class BunCG<S extends Record<string, any>> {
                 });
               });
             })
-          : cursors?.map((c) => ({
+          : scopes?.map((c) => ({
               path: c,
               value: c.reduce((slice, p) => {
                 return slice?.[p];

@@ -1,4 +1,4 @@
-import { useMemo, useState, createContext, useContext, useEffect } from "react";
+import { useState, createContext, useContext, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 
 import { Client } from "./client";
@@ -20,9 +20,7 @@ export const ClientProvider = ({ children }) => {
   }, []);
 
   return (
-    <ClientContext.Provider value={[state, setState]}>
-      {children}
-    </ClientContext.Provider>
+    <ClientContext.Provider value={state}>{children}</ClientContext.Provider>
   );
 };
 
@@ -31,10 +29,9 @@ export const useClient = () => {
   return client;
 };
 
-// the app
-
+// actual page
 const App = () => {
-  const [state, setState] = useClient();
+  const state = useClient();
   const [log, setLog] = useState([]);
 
   useEffect(() => {
