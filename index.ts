@@ -1,6 +1,9 @@
 import BunCG from "./server/src";
 
-const cg = new BunCG({
+const cg = new BunCG<{
+  flavorText: string;
+  scoreboard: { name: string; score: number }[];
+}>({
   flavorText: "thingy",
   scoreboard: [
     {
@@ -12,11 +15,17 @@ const cg = new BunCG({
       score: 2,
     },
   ],
-  updateScore(draft, _) {
-    const w = draft.scoreboard.shift();
-    console.log(draft.scoreboard);
-    draft.scoreboard.push(w);
+  updateScore(stream, payload) {
+    stream((state) => {
+      const w = state.scoreboard.shift();
+      console.log(state.scoreboard);
+      if (w) {
+        state.scoreboard.push(w);
+      }
+      // return "error?";
+    });
+    // return "error?"
   },
 });
 
-cg.serve();
+cg.run();

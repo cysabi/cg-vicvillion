@@ -2,8 +2,6 @@ import { pack, unpack } from "msgpackr";
 import State from "./state";
 import Persist from "./persist";
 import type {
-  InputActionAsync,
-  InputActions,
   Message,
   MessageInit,
   InputAction,
@@ -11,69 +9,76 @@ import type {
   MessageAction,
   Emit,
   Clients,
-  WebSocketHandler,
   ServerWebSocket,
 } from "./types";
 
-export default class BunCG<S extends Record<string, any>> {
-  #state: State<S>;
-  #actions: InputActions<S> = {};
-  #persist;
-  #clients: Clients;
-  #websocket: WebSocketHandler;
+export default class BunCG<S> {
+  config: {
+    state: S;
+    actions: Record<string, InputAction<S>>;
+  };
 
-  serve(port = 2513) {
-    Bun.serve({
-      port,
-      fetch(req, server) {
-        server.upgrade(req);
-      },
-      websocket: this.#websocket,
-    });
-  }
-
-  act(serverAction: (draft: S) => void) {
-    this.#handleActionDispatch(serverAction);
-  }
-
-  constructor(input: Input<S>, options = { db: "buncg.state" }) {
+  constructor(input: Input<S>) {
+    this.config = {
+      actions: {},
+      state: {} as S,
+    };
+    // deep search for an external lib
     Object.entries(input).filter(([key, value]) => {
       if (typeof value === "function") {
         delete input[key];
-        this.#actions[key] = value as InputAction<S>;
+        this.config.actions[key] = value as InputAction<S>;
       }
     });
-    this.#state = new State<S>(input);
-    this.#persist = new Persist(options.db);
+    this.config.state = input;
+  }
 
+  #state!: State<S>;
+  #actions!: { [key: string]: InputAction<S> };
+  #persist!: Persist<S>;
+  #clients!: Clients;
+
+  run({ port, db } = { port: 2513, db: "state.persist" }) {
+    this.#state = new State<S>(this.config.state);
+    this.#actions = this.config.actions;
+    this.#persist = new Persist(db);
+
+    // setup persistence
     this.#state.sink = this.#persist.patches().asArray;
     this.#state.flush();
 
     this.#persist.clear();
     this.#persist.init(this.#state.snap());
 
+    // run server
     this.#clients = new Map();
-    this.#websocket = {
-      message: (ws, msg: Buffer) => {
-        const data: Message = unpack(msg);
+    Bun.serve({
+      port,
+      fetch(req, server) {
+        server.upgrade(req);
+      },
+      websocket: {
+        message: (ws, msg: Buffer) => {
+          const data: Message = unpack(msg);
 
-        console.info(`ws ~ message ~ ${JSON.stringify(data)}`);
+          console.info(`ws ~ message ~ ${JSON.stringify(data)}`);
 
-        switch (data.type) {
-          case "init":
-            return this.#handleInit(data, ws);
-          case "action":
-            return this.#handleAction(data);
-        }
+          switch (data.type) {
+            case "init":
+              return this.#handleInit(data, ws);
+            case "action":
+              return this.#handleAction(data);
+          }
+        },
+        open: (ws) => {
+          console.info("ws ~ open");
+        },
+        close: (ws) => {
+          console.info("ws ~ close");
+          this.#clients.delete(ws);
+        },
       },
-      open: (ws) => {
-        console.info("ws ~ open");
-      },
-      close: (ws) => {
-        console.info("ws ~ close");
-        this.#clients.delete(ws);
-      },
-    };
+    });
   }
 
   #handleInit({ scopes }: MessageInit, ws: ServerWebSocket) {
@@ -81,20 +86,11 @@ export default class BunCG<S extends Record<string, any>> {
     this.#emit({ ws });
   }
 
-  #handleAction({ action, payload }: MessageAction) {
+  async #handleAction({ action, payload }: MessageAction) {
     const mutate = this.#actions?.[action];
     if (!mutate) return;
-    if (action.endsWith("Async")) {
-      const mutateAsync = mutate as InputActionAsync<S>;
-      mutateAsync(payload).then((m) => this.#handleActionDispatch(m));
-    } else {
-      this.#handleActionDispatch(mutate, payload);
-    }
-  }
-  #handleActionDispatch(dispatch: InputAction<S>, payload?: any) {
-    this.#state.withStream((draft) => {
-      dispatch(draft, payload);
-    });
+
+    await mutate(this.#state.stream, payload);
 
     for (const ws of this.#clients.keys()) {
       this.#emit({ ws, patches: this.#state.sink });
@@ -123,7 +119,7 @@ export default class BunCG<S extends Record<string, any>> {
               path: c,
               value: c.reduce((slice, p) => {
                 return slice?.[p];
-              }, this.#state.snap()),
+              }, this.#state.snap() as any),
             })),
       })
     );

@@ -1,48 +1,59 @@
 import type { Patch } from "./types";
 
 export default class State<S> {
-  withStream(er: (state: S) => void) {
+  #state: S;
+  #streaming: boolean = false;
+  #flushing: boolean = false;
+  sink: Patch[] = [];
+
+  snap() {
+    if (this.#streaming === true) throw ErrorStreamOpen;
+
+    return this.#state;
+  }
+
+  stream(cb: (state: S) => void) {
+    if (this.#streaming === true) throw ErrorStreamOpen;
+
     try {
       this.#streaming = true;
-      er(this.#state);
+      cb(this.#state);
+      this.flush();
+    } catch (error) {
+      this.flush(false);
     } finally {
       this.#streaming = false;
     }
   }
 
-  snap() {
-    this.#assertNotStreaming();
-    return this.#state;
-  }
+  flush(save = true) {
+    if (this.#streaming === true) throw ErrorStreamOpen;
 
-  flush() {
-    this.#assertNotStreaming();
     try {
-      this.sink.forEach((patch: Patch) => {
-        if (patch.path.length === 0) {
-          this.#state = this.#proxify(patch.value);
-        } else {
-          patch.path.reduce((slice: any, p, i) => {
-            if (i !== patch.path.length - 1) {
-              return slice[p];
-            }
-            if (patch.value === undefined) {
-              delete slice[p];
-            } else {
-              slice[p] = patch.value;
-            }
-          }, this.#state);
-        }
-      });
+      this.#flushing = true;
+      if (save) {
+        this.sink.forEach((patch: Patch) => {
+          if (patch.path.length === 0) {
+            this.#state = this.#proxify(patch.value);
+          } else {
+            patch.path.reduce((slice: any, p, i) => {
+              if (i !== patch.path.length - 1) {
+                return slice[p];
+              }
+              if (patch.value === undefined) {
+                delete slice[p];
+              } else {
+                slice[p] = patch.value;
+              }
+            }, this.#state);
+          }
+        });
+      }
     } finally {
+      this.#flushing = false;
       this.sink = [];
     }
   }
-
-  sink: Patch[] = [];
-
-  #state: S;
-  #streaming: boolean = false;
 
   constructor(state: S) {
     this.#state = this.#proxify(state);
@@ -67,7 +78,10 @@ export default class State<S> {
                 return target[prop](...args);
               }
               const state = this.#proxifyGet(target, path).slice();
-              this.#stream(path, state);
+
+              if (!this.#streaming) throw ErrorStreamClosed;
+              this.sink.push({ path, value: state });
+
               return this.#proxify(state[prop](...args), path);
             };
           }
@@ -78,18 +92,7 @@ export default class State<S> {
       });
     }
 
-    if (
-      Object.prototype.toString.call(value) !== "[object Object]"
-        ? false
-        : value.constructor === undefined
-        ? true
-        : Object.prototype.toString.call(value.constructor.prototype) !==
-          "[object Object]"
-        ? false
-        : value.constructor.prototype.hasOwnProperty("isPrototypeOf") === false
-        ? false
-        : true
-    ) {
+    if (isObject(value)) {
       return new Proxy(value, {
         get: (target: any, prop: any) => {
           if (prop === PROXY) {
@@ -121,40 +124,24 @@ export default class State<S> {
 
   #proxifySet(path: string[]) {
     return (target: any, prop: string | symbol, newValue?: any) => {
-      if (!this.#streaming) {
+      if (this.#flushing) {
         if (newValue !== undefined) {
           return (target[prop] = newValue);
         }
         return delete target[prop];
       }
-      return this.#stream([...path, prop as string], newValue);
+      if (!this.#streaming) throw ErrorStreamClosed;
+      this.sink.push({ path: [...path, prop as string], value: newValue });
     };
-  }
-
-  #stream(path: string[], value?: Patch[]) {
-    this.#assertStreaming();
-
-    this.sink.push({ path, value });
-    return true;
-  }
-
-  #assertStreaming() {
-    if (!this.#streaming) {
-      throw Error(
-        "Stream is not open! Are you trying to mutate state outside of `.withStream()`?"
-      );
-    }
-  }
-
-  #assertNotStreaming() {
-    if (this.#streaming) {
-      throw Error(
-        "Stream is currently open! Make sure you're calling this outside of a stream."
-      );
-    }
   }
 }
 
+const ErrorStreamOpen = Error(
+  "Stream is currently open! Make sure you're calling this outside of a stream."
+);
+const ErrorStreamClosed = Error(
+  "Stream is not open! Are you trying to mutate state outside of `.withStream()`?"
+);
 const PROXY = Symbol.for("proxy");
 const ARRAY_MUTATORS = new Set([
   "push",
@@ -166,3 +153,14 @@ const ARRAY_MUTATORS = new Set([
   "sort",
   "copyWithin",
 ]);
+const isObject = (value: any) =>
+  Object.prototype.toString.call(value) !== "[object Object]"
+    ? false
+    : value.constructor === undefined
+    ? true
+    : Object.prototype.toString.call(value.constructor.prototype) !==
+      "[object Object]"
+    ? false
+    : value.constructor.prototype.hasOwnProperty("isPrototypeOf") === false
+    ? false
+    : true;
