@@ -1,6 +1,6 @@
-import BunCG from "./server/src";
+import bento from "./server/src";
 
-const cg = new BunCG<{
+const cg = bento.box<{
   flavorText: string;
   scoreboard: { name: string; score: number }[];
 }>({
@@ -26,6 +26,10 @@ const cg = new BunCG<{
     });
     // return "error?"
   },
+});
+
+cg.use(async (act) => {
+  await act({ action: "updateScore", payload: 1 });
 });
 
 cg.run();

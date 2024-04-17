@@ -9,13 +9,13 @@ export type InputAction<S> = (
 ) => Promise<void> | void;
 
 export type Patch = { path: string[]; value?: any };
-export type Message = MessageInit | MessageAction;
+export type Message =
+  | ({ type: "init" } & MessageInit)
+  | ({ type: "action" } & MessageAction);
 export type MessageInit = {
-  type: "init";
   scopes: Patch["path"][];
 };
 export type MessageAction = {
-  type: "action";
   action: string;
   payload: any;
 };

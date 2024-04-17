@@ -1,5 +1,5 @@
 {
-  "name": "buncg",
+  "name": "bento",
   "module": "index.ts",
   "devDependencies": {
     "@types/bun": "latest"
