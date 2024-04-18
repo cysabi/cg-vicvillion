@@ -1,10 +1,20 @@
 import bento from "./server/src";
 
-const cg = bento.box<{
+let countdown: Timer | null = null;
+
+type State = {
+  obs: any;
   flavorText: string;
+  nextMatch: null | number;
   scoreboard: { name: string; score: number }[];
-}>({
+};
+
+const cg = bento.box<State>({
+  obs: {
+    scene: null,
+  },
   flavorText: "thingy",
+  nextMatch: null,
   scoreboard: [
     {
       name: "apple",
@@ -15,21 +25,39 @@ const cg = bento.box<{
       score: 2,
     },
   ],
-  updateScore(stream, payload) {
-    stream((state) => {
+  setObsScene(set, payload: string) {
+    set((state) => {
+      state.obs.scene = payload;
+    });
+  },
+  setCount(set, payload: number | null) {
+    if (countdown) clearInterval(countdown);
+    set((state) => {
+      state.nextMatch = payload;
+    });
+    countdown = setInterval(() => {
+      set((state) => {
+        if (state.nextMatch) {
+          state.nextMatch -= 1;
+        } else if (countdown) {
+          clearInterval(countdown);
+        }
+      });
+    }, 1000);
+  },
+  updateScore(set, payload) {
+    set((state) => {
       const w = state.scoreboard.shift();
       console.log(state.scoreboard);
       if (w) {
         state.scoreboard.push(w);
       }
-      // return "error?";
     });
-    // return "error?"
   },
 });
 
 cg.use(async (act) => {
-  await act({ action: "updateScore", payload: 1 });
+  act("");
 });
 
 cg.run();

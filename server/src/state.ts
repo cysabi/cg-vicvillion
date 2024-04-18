@@ -18,9 +18,6 @@ export default class State<S> {
     try {
       this.#streaming = true;
       cb(this.#state);
-      this.flush();
-    } catch (error) {
-      this.flush(false);
     } finally {
       this.#streaming = false;
     }

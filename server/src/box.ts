@@ -3,16 +3,16 @@ import State from "./state";
 import Persist from "./persist";
 import type {
   Message,
-  MessageInit,
   InputAction,
   Input,
-  MessageAction,
   Emit,
   Clients,
   ServerWebSocket,
+  Connect,
+  Setter,
 } from "./types";
 
-export default class BentoBox<S> {
+export default class BentoBox<S extends Record<string, unknown>> {
   config: {
     state: S;
     actions: Record<string, InputAction<S>>;
@@ -28,22 +28,18 @@ export default class BentoBox<S> {
       actions: {},
       state: {} as S,
     };
-    // deep search for an external lib
+    // TODO: deep search for an external lib
     Object.entries(input).filter(([key, value]) => {
       if (typeof value === "function") {
         delete input[key];
         this.config.actions[key] = value as InputAction<S>;
       }
     });
-    this.config.state = input;
+    this.config.state = input as S;
   }
 
-  use(
-    connector: (
-      act: InstanceType<typeof BentoBox>["_handleAction"]
-    ) => Promise<void> | void
-  ) {
-    connector(this._handleAction);
+  use(connect: Connect) {
+    connect(this.#handleAction);
   }
 
   run({ port, db } = { port: 2513, db: "state.persist" }) {
@@ -73,9 +69,9 @@ export default class BentoBox<S> {
 
           switch (data.type) {
             case "init":
-              return this._handleInit(data, ws);
+              return this.#handleInit(data.scopes, ws);
             case "action":
-              return this._handleAction(data);
+              return this.#handleAction(data.action, data.payload);
           }
         },
         open: (ws) => {
@@ -89,22 +85,28 @@ export default class BentoBox<S> {
     });
   }
 
-  _handleInit({ scopes }: MessageInit, ws: ServerWebSocket) {
+  #handleInit(scopes: string[][], ws: ServerWebSocket) {
     this.#clients.set(ws, scopes || [[]]);
     this.#emit({ ws });
   }
 
-  async _handleAction({ action, payload }: MessageAction) {
+  #handleAction(action: string, payload: any) {
     const mutate = this.#actions?.[action];
-    if (!mutate) return;
-
-    await mutate(this.#state.stream, payload);
-
-    for (const ws of this.#clients.keys()) {
-      this.#emit({ ws, patches: this.#state.sink });
+    if (!mutate) return; // TODO: handle this?
+    mutate(this.#handleActionStream, payload);
+  }
+  #handleActionStream(setter: Setter<S>) {
+    try {
+      this.#state.stream(setter);
+      for (const ws of this.#clients.keys()) {
+        this.#emit({ ws, patches: this.#state.sink });
+      }
+      this.#persist.append(this.#state.sink);
+      this.#state.flush();
+    } finally {
+      // TODO: error handling?
+      this.#state.flush(false);
     }
-    this.#persist.append(this.#state.sink);
-    this.#state.flush();
   }
 
   #emit({ ws, patches }: Emit) {
@@ -125,9 +127,9 @@ export default class BentoBox<S> {
             })
           : scopes?.map((c) => ({
               path: c,
-              value: c.reduce((slice, p) => {
+              value: c.reduce((slice: any, p) => {
                 return slice?.[p];
-              }, this.#state.snap() as any),
+              }, this.#state.snap()),
             })),
       })
     );
