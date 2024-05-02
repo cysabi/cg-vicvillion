@@ -1,4 +1,6 @@
-import bento from "./server/src";
+import { preact } from "@preact/preset-vite";
+import tailwindcss from "@tailwindcss/vite";
+import bento from "./bento";
 
 let countdown: Timer | null = null;
 
@@ -45,7 +47,7 @@ const cg = bento.box<State>({
       });
     }, 1000);
   },
-  updateScore(set, payload) {
+  updateScore(set, _payload) {
     set((state) => {
       const w = state.scoreboard.shift();
       console.log(state.scoreboard);
@@ -56,8 +58,9 @@ const cg = bento.box<State>({
   },
 });
 
-cg.use(async (act) => {
-  act("");
+cg.run({
+  build: {
+    sourcemap: true,
+  },
+  plugins: [tailwindcss(), preact()],
 });
-
-cg.run();

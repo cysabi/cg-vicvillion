@@ -1,6 +1,3 @@
-import { pack, unpack } from "msgpackr";
-import State from "./state";
-import Persist from "./persist";
 import type {
   Message,
   InputAction,
@@ -11,6 +8,18 @@ import type {
   Connect,
   Setter,
 } from "./types";
+import State from "./state";
+import Persist from "./persist";
+import defu from "defu";
+import { pack, unpack } from "msgpackr";
+import {
+  createApp,
+  fromNodeMiddleware,
+  defineWebSocketHandler,
+  toWebHandler,
+} from "h3";
+import wsAdapter from "crossws/adapters/bun";
+import { UserConfig, createServer } from "vite";
 
 export default class BentoBox<S extends Record<string, unknown>> {
   config: {
@@ -42,45 +51,75 @@ export default class BentoBox<S extends Record<string, unknown>> {
     connect(this.#handleAction);
   }
 
-  run({ port, db } = { port: 2513, db: "state.persist" }) {
+  run(viteConfig: UserConfig) {
     this.#state = new State<S>(this.config.state);
     this.#actions = this.config.actions;
-    this.#persist = new Persist(db);
+    this.#persist = new Persist("bento.db");
 
-    // setup persistence
-    this.#state.sink = this.#persist.patches().asArray;
+    // replay patches
+    this.#state.sink = this.#persist.patches();
     this.#state.flush();
 
+    // collapse db
     this.#persist.clear();
     this.#persist.init(this.#state.snap());
 
-    // run server
+    // apply defaults
+    this.#handleActionStream((draft) => {
+      defu(draft, this.config.state);
+    });
+
+    return this.#serve(viteConfig);
+  }
+
+  async #serve(viteConfig: UserConfig) {
     this.#clients = new Map();
-    Bun.serve({
-      port,
-      fetch(req, server) {
-        server.upgrade(req);
+    const app = createApp();
+
+    // websocket server
+    const wss = defineWebSocketHandler({
+      message: (ws, msg: any) => {
+        const data: Message = unpack(msg);
+
+        console.info(`ws ~ message ~ ${JSON.stringify(data)}`);
+
+        switch (data.type) {
+          case "init":
+            return this.#handleInit(data.scopes, ws);
+          case "action":
+            return this.#handleAction(data.action, data.payload);
+        }
       },
-      websocket: {
-        message: (ws, msg: Buffer) => {
-          const data: Message = unpack(msg);
+      open: (ws) => {
+        console.info("ws ~ open");
+      },
+      close: (ws) => {
+        console.info("ws ~ close");
+        this.#clients.delete(ws);
+      },
+    });
+    app.use("/", wss);
 
-          console.info(`ws ~ message ~ ${JSON.stringify(data)}`);
+    // vite dev server
+    const vite = await createServer(
+      defu(viteConfig, {
+        build: { target: "chrome95" },
+        server: { middlewareMode: true },
+      })
+    );
+    app.use(fromNodeMiddleware(vite.middlewares));
 
-          switch (data.type) {
-            case "init":
-              return this.#handleInit(data.scopes, ws);
-            case "action":
-              return this.#handleAction(data.action, data.payload);
-          }
-        },
-        open: (ws) => {
-          console.info("ws ~ open");
-        },
-        close: (ws) => {
-          console.info("ws ~ close");
-          this.#clients.delete(ws);
-        },
+    // serve
+    const { handleUpgrade, websocket } = wsAdapter(app.websocket);
+    const handleHttp = toWebHandler(app);
+    return Bun.serve({
+      port: 4400,
+      websocket,
+      async fetch(req, server) {
+        if (await handleUpgrade(req, server)) {
+          return;
+        }
+        return handleHttp(req);
       },
     });
   }

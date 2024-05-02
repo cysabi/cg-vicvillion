@@ -44,7 +44,7 @@ export default class State<S> {
               }
             }, this.#state);
           }
-        });
+        }); // sdfsdfsdf
       }
     } finally {
       this.#flushing = false;
@@ -154,10 +154,10 @@ const isObject = (value: any) =>
   Object.prototype.toString.call(value) !== "[object Object]"
     ? false
     : value.constructor === undefined
-    ? true
-    : Object.prototype.toString.call(value.constructor.prototype) !==
-      "[object Object]"
-    ? false
-    : value.constructor.prototype.hasOwnProperty("isPrototypeOf") === false
-    ? false
-    : true;
+      ? true
+      : Object.prototype.toString.call(value.constructor.prototype) !==
+        "[object Object]"
+        ? false
+        : value.constructor.prototype.hasOwnProperty("isPrototypeOf") === false
+          ? false
+          : true;

@@ -1,7 +1,7 @@
-import { useState, createContext, useContext, useEffect } from "react";
-import ReactDOM from "react-dom/client";
-
+import { useState, createContext, useContext, useEffect } from "preact";
+import { render } from "preact";
 import { Client } from "./client";
+import "./index.css";
 
 // react bindings
 const cg = new Client();
@@ -69,8 +69,9 @@ const App = () => {
   );
 };
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+render(
   <ClientProvider>
     <App />
-  </ClientProvider>
+  </ClientProvider>,
+  document.getElementById("app")
 );

@@ -1,10 +1,10 @@
 import { open } from "lmdb";
 import type { Patch } from "./types";
 
-const STRUCTS_KEY = Symbol.for("structs_key");
+const STRUCTS_KEY = Symbol.for("STRUCTS_KEY");
 
 export default class Persist<S> {
-  #db;
+  #db: ReturnType<typeof open<Patch[]>>;
 
   constructor(fp: string) {
     this.#db = open<Patch[]>(fp, { sharedStructuresKey: STRUCTS_KEY });
@@ -15,10 +15,10 @@ export default class Persist<S> {
   }
 
   clear() {
-    return this.#db.transactionSync(() => {
-      const structs = this.#db.get(Symbol.for("structs")) || [];
+    this.#db.transactionSync(() => {
+      const structs = this.#db.get(STRUCTS_KEY) || [];
       this.#db.clearSync();
-      this.#db.putSync(Symbol.for("structs"), structs);
+      this.#db.putSync(STRUCTS_KEY, structs);
     });
   }
 
@@ -27,7 +27,8 @@ export default class Persist<S> {
   }
 
   patches() {
-    return this.#db.getRange({ start: 0 }).flatMap<Patch>(({ value }) => value);
+    return this.#db.getRange({ start: 0 }).flatMap(({ value }) => value)
+      .asArray;
   }
 
   index() {
