@@ -31,10 +31,11 @@ export default class Server<S extends Record<string, unknown>> {
       state: S;
       actions: Record<string, ServerConfigAction<S>>;
     } = { state: {} as S, actions: {} };
-    Object.entries(input).filter(([key, value]) => {
+    Object.entries(input).forEach(([key, value]) => {
       if (typeof value === "function") {
-        delete input[key];
         config.actions[key] = value as ServerConfigAction<S>;
+      } else {
+        config.state[key as keyof S] = value as S[keyof S];
       }
     });
 
@@ -52,8 +53,10 @@ export default class Server<S extends Record<string, unknown>> {
     this.#persist.init(this.#state.snap());
 
     // apply defaults
-    this.#handleActionStream((draft) => {
-      defu(draft, config.state);
+    this.#handleActionStream((draft: Record<string, unknown>) => {
+      Object.entries(defu(draft, config.state)).forEach(([key, value]) => {
+        draft[key] = value;
+      });
     });
 
     this.handler = {
