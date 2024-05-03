@@ -1,47 +1,29 @@
 import type {
   Message,
-  ServerConfigAction,
-  ServerConfig,
   Emit,
   Clients,
   ServerWebSocket,
-  Connect,
   Setter,
   Handler,
-} from "./types";
-import State from "./state";
-import Persist from "./persist";
+  Actions,
+  ServerConfig,
+} from "../types";
 import defu from "defu";
 import { pack, unpack } from "msgpackr";
+import { State } from "./state";
+import { Persist } from "./persist";
 
-export default class Server<S extends Record<string, unknown>> {
+export class Server<S extends Record<string, unknown>> {
   #state: State<S>;
+  #actions: Actions<S>;
   #persist: Persist<S>;
-  #actions: { [key: string]: ServerConfigAction<S> };
   #clients: Clients;
-  handler: Handler;
+  wss: Handler;
 
-  use(connect: Connect) {
-    connect(this.#handleAction.bind(this));
-  }
-
-  constructor(input: ServerConfig<S>) {
-    // TODO: deep search for an external lib
-    const config: {
-      state: S;
-      actions: Record<string, ServerConfigAction<S>>;
-    } = { state: {} as S, actions: {} };
-    Object.entries(input).forEach(([key, value]) => {
-      if (typeof value === "function") {
-        config.actions[key] = value as ServerConfigAction<S>;
-      } else {
-        config.state[key as keyof S] = value as S[keyof S];
-      }
-    });
-
+  constructor(config: ServerConfig<S>) {
     this.#state = new State<S>(config.state);
-    this.#persist = new Persist("bento.db");
     this.#actions = config.actions;
+    this.#persist = new Persist("bento.db");
     this.#clients = new Map();
 
     // replay patches
@@ -59,7 +41,7 @@ export default class Server<S extends Record<string, unknown>> {
       });
     });
 
-    this.handler = {
+    this.wss = {
       message: (ws, msg) => {
         const data: Message = unpack(msg.rawData);
 

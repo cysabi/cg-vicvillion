@@ -1,6 +1,6 @@
-import type { Patch } from "./types";
+import type { Patch } from "../types";
 
-export default class State<S> {
+export class State<S> {
   #state: S;
   #streaming: boolean = false;
   #flushing: boolean = false;

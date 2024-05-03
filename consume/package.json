@@ -1,8 +1,6 @@
 {
   "type": "module",
-  "dependencies": {
-    "bento": "file:../lib"
-  },
+  "dependencies": { "bento": "../lib/" },
   "devDependencies": {
     "@preact/preset-vite": "^2.8.2",
     "@tailwindcss/vite": "^4.0.0-alpha.14",

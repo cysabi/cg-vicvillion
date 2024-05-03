@@ -1,9 +1,9 @@
 import { open } from "lmdb";
-import type { Patch } from "./types";
+import type { Patch } from "../types";
 
 const STRUCTS_KEY = Symbol.for("STRUCTS_KEY");
 
-export default class Persist<S> {
+export class Persist<S> {
   #db: ReturnType<typeof open<Patch[]>>;
 
   constructor(fp: string) {

@@ -7,8 +7,8 @@ import {
 } from "h3";
 import wsAdapter from "crossws/adapters/bun";
 import { createServer as createViteServer } from "vite";
-import BentoServer from "./src/server";
-import type { BentoBox } from "./src/types";
+import { Server as BentoServer } from "./server";
+import type { ServerConfig } from "./types";
 
 const command = defineCommand({
   meta: { name: "bento" },
@@ -25,15 +25,12 @@ const command = defineCommand({
         },
       },
       async run({ args }) {
-        const box = await importBentoBox(args["config"] || "bento.box");
+        const config = await importBentoBox(args["config"] || "bento.box");
         const app = createApp();
 
         // websocket server
-        const bento = new BentoServer(box.config);
-        box.uses.forEach((use) => {
-          bento.use(use);
-        });
-        app.use("/_ws", defineWebSocketHandler(bento.handler));
+        const bento = new BentoServer(config);
+        app.use("/_ws", defineWebSocketHandler(bento.wss));
 
         // vite dev server
         const vite = await createViteServer({
@@ -62,7 +59,7 @@ const command = defineCommand({
 
 const importBentoBox = async (
   config: string
-): Promise<BentoBox<Record<string, unknown>>> => {
+): Promise<ServerConfig<Record<string, unknown>>> => {
   return (
     await import(Bun.pathToFileURL(Bun.resolveSync(`./${config}`, ".")).href)
   ).default;
