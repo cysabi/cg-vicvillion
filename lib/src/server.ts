@@ -7,36 +7,40 @@ import type {
   ServerWebSocket,
   Connect,
   Setter,
-} from "../";
+  Handler,
+} from "./types";
 import State from "./state";
 import Persist from "./persist";
 import defu from "defu";
 import { pack, unpack } from "msgpackr";
-import type { defineWebSocketHandler } from "h3";
 
-export default class WebSocket<S extends Record<string, unknown>> {
+export default class Server<S extends Record<string, unknown>> {
   #state: State<S>;
   #persist: Persist<S>;
   #actions: { [key: string]: ServerConfigAction<S> };
   #clients: Clients;
-  handler: Parameters<typeof defineWebSocketHandler>[0];
+  handler: Handler;
 
-  constructor(config: ServerConfig<S>) {
+  use(connect: Connect) {
+    connect(this.#handleAction.bind(this));
+  }
+
+  constructor(input: ServerConfig<S>) {
     // TODO: deep search for an external lib
-    const input: {
+    const config: {
       state: S;
       actions: Record<string, ServerConfigAction<S>>;
     } = { state: {} as S, actions: {} };
-    Object.entries(config).filter(([key, value]) => {
+    Object.entries(input).filter(([key, value]) => {
       if (typeof value === "function") {
-        delete config[key];
-        input.actions[key] = value as ServerConfigAction<S>;
+        delete input[key];
+        config.actions[key] = value as ServerConfigAction<S>;
       }
     });
 
-    this.#state = new State<S>(input.state);
+    this.#state = new State<S>(config.state);
     this.#persist = new Persist("bento.db");
-    this.#actions = input.actions;
+    this.#actions = config.actions;
     this.#clients = new Map();
 
     // replay patches
@@ -49,7 +53,7 @@ export default class WebSocket<S extends Record<string, unknown>> {
 
     // apply defaults
     this.#handleActionStream((draft) => {
-      defu(draft, input.state);
+      defu(draft, config.state);
     });
 
     this.handler = {
@@ -75,10 +79,6 @@ export default class WebSocket<S extends Record<string, unknown>> {
     };
   }
 
-  use(connect: Connect) {
-    connect(this.#handleAction);
-  }
-
   #handleInit(scopes: string[][], ws: ServerWebSocket) {
     this.#clients.set(ws, scopes || [[]]);
     this.#emit({ ws });
@@ -87,7 +87,7 @@ export default class WebSocket<S extends Record<string, unknown>> {
   #handleAction(action: string, payload: any) {
     const mutate = this.#actions?.[action];
     if (!mutate) return; // TODO: handle this?
-    mutate(this.#handleActionStream, payload);
+    mutate(this.#handleActionStream.bind(this), payload);
   }
   #handleActionStream(setter: Setter<S>) {
     try {

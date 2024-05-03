@@ -1,5 +1,5 @@
 import { open } from "lmdb";
-import type { Patch } from "../";
+import type { Patch } from "./types";
 
 const STRUCTS_KEY = Symbol.for("STRUCTS_KEY");
 

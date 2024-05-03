@@ -1,4 +1,4 @@
-import type { Patch } from "../";
+import type { Patch } from "./types";
 
 export default class State<S> {
   #state: S;

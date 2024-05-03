@@ -1,4 +1,4 @@
-import type { Connect, ServerConfig, BentoBox } from "./src/types";
+import type { Connect, ServerConfig, BentoBox } from "./types";
 
 export const box = <S extends Record<string, unknown>>(
   config: ServerConfig<S>
@@ -18,5 +18,5 @@ export const box = <S extends Record<string, unknown>>(
   };
 };
 
-export type { Connect, ServerConfig, BentoBox };
+export type { BentoBox };
 export default { box };

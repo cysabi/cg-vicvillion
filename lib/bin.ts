@@ -7,44 +7,33 @@ import {
 } from "h3";
 import wsAdapter from "crossws/adapters/bun";
 import { createServer as createViteServer } from "vite";
-import BentoServer from "./src/server/index";
+import BentoServer from "./src/server";
 import type { BentoBox } from "./src/types";
 
-const importBentoBox = async (config: string) => {
-  return (
-    await import(Bun.pathToFileURL(Bun.resolveSync(`./${config}`, ".")).href)
-  ).default;
-};
-
 const command = defineCommand({
-  meta: {
-    name: "bento",
-    description: "Run BentoBox",
-  },
-  args: {
-    config: {
-      type: "string",
-      description: "Path to config file (defaults to 'bento.box.js')",
-    },
-    port: {
-      type: "string",
-      description: "Port to listen on (defaults to '4400')",
-    },
-  },
+  meta: { name: "bento" },
   subCommands: () => ({
     dev: {
+      args: {
+        config: {
+          type: "string",
+          description: "Path to config file (defaults to 'bento.box.js')",
+        },
+        port: {
+          type: "string",
+          description: "Port to listen on (defaults to '4400')",
+        },
+      },
       async run({ args }) {
-        const bentoBox = (await importBentoBox(
-          args["config"] || "bento.box"
-        )) as BentoBox<any>;
+        const box = await importBentoBox(args["config"] || "bento.box");
         const app = createApp();
 
         // websocket server
-        const bentoServer = new BentoServer(bentoBox.config);
-        bentoBox.uses.forEach((use) => {
-          bentoServer.use(use);
+        const bento = new BentoServer(box.config);
+        box.uses.forEach((use) => {
+          bento.use(use);
         });
-        app.use("/_ws", defineWebSocketHandler(bentoServer.handler));
+        app.use("/_ws", defineWebSocketHandler(bento.handler));
 
         // vite dev server
         const vite = await createViteServer({
@@ -70,5 +59,13 @@ const command = defineCommand({
     },
   }),
 });
+
+const importBentoBox = async (
+  config: string
+): Promise<BentoBox<Record<string, unknown>>> => {
+  return (
+    await import(Bun.pathToFileURL(Bun.resolveSync(`./${config}`, ".")).href)
+  ).default;
+};
 
 runMain(command);
