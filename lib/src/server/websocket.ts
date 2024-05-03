@@ -1,60 +1,43 @@
 import type {
   Message,
-  InputAction,
-  Input,
+  ServerConfigAction,
+  ServerConfig,
   Emit,
   Clients,
   ServerWebSocket,
   Connect,
   Setter,
-} from "./types";
+} from "../";
 import State from "./state";
 import Persist from "./persist";
 import defu from "defu";
 import { pack, unpack } from "msgpackr";
-import {
-  createApp,
-  fromNodeMiddleware,
-  defineWebSocketHandler,
-  toWebHandler,
-} from "h3";
-import wsAdapter from "crossws/adapters/bun";
-import { UserConfig, createServer } from "vite";
+import type { defineWebSocketHandler } from "h3";
 
-export default class BentoBox<S extends Record<string, unknown>> {
-  config: {
-    state: S;
-    actions: Record<string, InputAction<S>>;
-  };
+export default class WebSocket<S extends Record<string, unknown>> {
+  #state: State<S>;
+  #persist: Persist<S>;
+  #actions: { [key: string]: ServerConfigAction<S> };
+  #clients: Clients;
+  handler: Parameters<typeof defineWebSocketHandler>[0];
 
-  #state!: State<S>;
-  #actions!: { [key: string]: InputAction<S> };
-  #persist!: Persist<S>;
-  #clients!: Clients;
-
-  constructor(input: Input<S>) {
-    this.config = {
-      actions: {},
-      state: {} as S,
-    };
+  constructor(config: ServerConfig<S>) {
     // TODO: deep search for an external lib
-    Object.entries(input).filter(([key, value]) => {
+    const input: {
+      state: S;
+      actions: Record<string, ServerConfigAction<S>>;
+    } = { state: {} as S, actions: {} };
+    Object.entries(config).filter(([key, value]) => {
       if (typeof value === "function") {
-        delete input[key];
-        this.config.actions[key] = value as InputAction<S>;
+        delete config[key];
+        input.actions[key] = value as ServerConfigAction<S>;
       }
     });
-    this.config.state = input as S;
-  }
 
-  use(connect: Connect) {
-    connect(this.#handleAction);
-  }
-
-  run(viteConfig: UserConfig) {
-    this.#state = new State<S>(this.config.state);
-    this.#actions = this.config.actions;
+    this.#state = new State<S>(input.state);
     this.#persist = new Persist("bento.db");
+    this.#actions = input.actions;
+    this.#clients = new Map();
 
     // replay patches
     this.#state.sink = this.#persist.patches();
@@ -66,20 +49,12 @@ export default class BentoBox<S extends Record<string, unknown>> {
 
     // apply defaults
     this.#handleActionStream((draft) => {
-      defu(draft, this.config.state);
+      defu(draft, input.state);
     });
 
-    return this.#serve(viteConfig);
-  }
-
-  async #serve(viteConfig: UserConfig) {
-    this.#clients = new Map();
-    const app = createApp();
-
-    // websocket server
-    const wss = defineWebSocketHandler({
-      message: (ws, msg: any) => {
-        const data: Message = unpack(msg);
+    this.handler = {
+      message: (ws, msg) => {
+        const data: Message = unpack(msg.rawData);
 
         console.info(`ws ~ message ~ ${JSON.stringify(data)}`);
 
@@ -97,31 +72,11 @@ export default class BentoBox<S extends Record<string, unknown>> {
         console.info("ws ~ close");
         this.#clients.delete(ws);
       },
-    });
-    app.use("/", wss);
+    };
+  }
 
-    // vite dev server
-    const vite = await createServer(
-      defu(viteConfig, {
-        build: { target: "chrome95" },
-        server: { middlewareMode: true },
-      })
-    );
-    app.use(fromNodeMiddleware(vite.middlewares));
-
-    // serve
-    const { handleUpgrade, websocket } = wsAdapter(app.websocket);
-    const handleHttp = toWebHandler(app);
-    return Bun.serve({
-      port: 4400,
-      websocket,
-      async fetch(req, server) {
-        if (await handleUpgrade(req, server)) {
-          return;
-        }
-        return handleHttp(req);
-      },
-    });
+  use(connect: Connect) {
+    connect(this.#handleAction);
   }
 
   #handleInit(scopes: string[][], ws: ServerWebSocket) {

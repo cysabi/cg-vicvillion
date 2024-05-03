@@ -1,11 +1,12 @@
 import type { Peer } from "crossws";
+import type { defineWebSocketHandler } from "h3";
 
-export type Input<S> =
+export type ServerConfig<S> =
   | S
   | {
-      [key: string]: InputAction<S>;
+      [key: string]: ServerConfigAction<S>;
     };
-export type InputAction<S> = (
+export type ServerConfigAction<S> = (
   set: (setter: Setter<S>) => void,
   payload?: any
 ) => Promise<void> | void;
@@ -32,3 +33,12 @@ export type Emit = {
 
 export type Clients = Map<ServerWebSocket, MessageInit["scopes"]>;
 export type ServerWebSocket = Peer<unknown>;
+export type Handler = Parameters<typeof defineWebSocketHandler>[0];
+
+export type BentoBox<S extends Record<string, unknown>> = {
+  config: ServerConfig<S>;
+  uses: Connect[];
+  controls: any[];
+  use(connect: Connect): BentoBox<S>;
+  control(control: any): BentoBox<S>;
+};

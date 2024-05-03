@@ -1,6 +1,7 @@
-import { useState, createContext, useContext, useEffect } from "preact";
+import { createContext } from "preact";
+import { useState, useContext, useEffect } from "preact/hooks";
 import { render } from "preact";
-import { Client } from "../bento/client";
+import { Client } from "bento/client";
 import "./index.css";
 
 // react bindings

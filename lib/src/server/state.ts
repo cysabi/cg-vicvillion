@@ -1,4 +1,4 @@
-import type { Patch } from "./types";
+import type { Patch } from "../";
 
 export default class State<S> {
   #state: S;
@@ -71,14 +71,11 @@ export default class State<S> {
 
           if (ARRAY_MUTATORS.has(prop)) {
             return (...args: any[]) => {
-              if (!this.#streaming) {
-                return target[prop](...args);
-              }
-              const state = this.#proxifyGet(target, path).slice();
-
+              if (this.#flushing) return target[prop](...args);
               if (!this.#streaming) throw ErrorStreamClosed;
-              this.sink.push({ path, value: state });
 
+              const state = this.#proxifyGet(target, path).slice();
+              this.sink.push({ path, value: state });
               return this.#proxify(state[prop](...args), path);
             };
           }
@@ -123,12 +120,17 @@ export default class State<S> {
     return (target: any, prop: string | symbol, newValue?: any) => {
       if (this.#flushing) {
         if (newValue !== undefined) {
-          return (target[prop] = newValue);
+          target[prop] = newValue;
+        } else {
+          delete target[prop];
         }
-        return delete target[prop];
+        return true;
       }
       if (!this.#streaming) throw ErrorStreamClosed;
-      this.sink.push({ path: [...path, prop as string], value: newValue });
+      return !!this.sink.push({
+        path: [...path, prop as string],
+        value: newValue,
+      });
     };
   }
 }
@@ -154,10 +156,10 @@ const isObject = (value: any) =>
   Object.prototype.toString.call(value) !== "[object Object]"
     ? false
     : value.constructor === undefined
-      ? true
-      : Object.prototype.toString.call(value.constructor.prototype) !==
-        "[object Object]"
-        ? false
-        : value.constructor.prototype.hasOwnProperty("isPrototypeOf") === false
-          ? false
-          : true;
+    ? true
+    : Object.prototype.toString.call(value.constructor.prototype) !==
+      "[object Object]"
+    ? false
+    : value.constructor.prototype.hasOwnProperty("isPrototypeOf") === false
+    ? false
+    : true;
