@@ -47,11 +47,7 @@ export default bento.box<State>({
   },
   updateScore(set, payload) {
     set((state) => {
-      const w = state.scoreboard.shift();
-      console.log(state.scoreboard);
-      if (w) {
-        state.scoreboard.push(w);
-      }
+      state.scoreboard[0].score -= 1;
     });
   },
 });

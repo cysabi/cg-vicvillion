@@ -10,14 +10,10 @@ export class Client<S> {
     this.#send({ type: "action", action, payload });
   }
 
-  constructor({
-    scopes,
-    initial,
-    port = 4400,
-  }: { scopes?: string[][]; initial?: S; port?: number } = {}) {
+  constructor({ scopes, initial }: { scopes?: string[][]; initial?: S } = {}) {
     this.#state = icepick.freeze(initial || ({} as S));
 
-    this.#ws = new WebSocket(`ws://localhost:${port}/_ws`);
+    this.#ws = new WebSocket(`ws://${window.location.hostname}:4400/_ws`);
     this.#ws.binaryType = "arraybuffer";
     this.#send({ type: "init", scopes });
     this.#ws.addEventListener("message", (event) => {

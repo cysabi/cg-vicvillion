@@ -7,21 +7,18 @@
     "./server": "./src/server/index.ts",
     "./client": "./src/client/index.ts"
   },
-  "bin": "./src/bin.ts",
   "dependencies": {
+    "@types/bun": "latest",
+    "@types/icepick": "^2.3.3",
     "citty": "^0.1.6",
     "defu": "^6.1.4",
     "h3": "^1.11.1",
     "icepick": "^2.4.0",
     "lmdb": "^3.0.8",
-    "msgpackr": "^1.10.1",
-    "vite": "^5.2.11"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/icepick": "^2.3.3"
+    "msgpackr": "^1.10.1"
   },
   "peerDependencies": {
+    "vite": "^5.2.11",
     "typescript": "^5.0.0"
   }
 }

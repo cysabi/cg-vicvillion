@@ -8,7 +8,6 @@ import type {
   Actions,
   ServerConfig,
 } from "../types";
-import defu from "defu";
 import { pack, unpack } from "msgpackr";
 import { State } from "./state";
 import { Persist } from "./persist";
@@ -33,13 +32,6 @@ export class Server<S extends Record<string, unknown>> {
     // collapse db
     this.#persist.clear();
     this.#persist.init(this.#state.snap());
-
-    // apply defaults
-    this.#handleActionStream((draft: Record<string, unknown>) => {
-      Object.entries(defu(draft, config.state)).forEach(([key, value]) => {
-        draft[key] = value;
-      });
-    });
 
     this.wss = {
       message: (ws, msg) => {
