@@ -40,31 +40,31 @@ const App = () => {
   }, [state]);
 
   return (
-    <div className="flex flex-col w-full max-w-6xl mx-auto p-2 gap-2" id="feed">
-      <div className="flex gap-2">
+    <div class="flex flex-col w-full max-w-6xl mx-auto p-2 gap-2" id="feed">
+      <div class="flex gap-2">
         <button
           onClick={() => {
             cg.act("updateScore", { index: 0, name: `hehe ${Date.now()}` });
           }}
-          className="bg-slate-300 rounded-md p-2 font-medium"
+          class="bg-slate-300 rounded-md p-2 font-medium"
         >
           Change score
-          <span className="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
+          <span class="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
             {state?.scoreboard?.[0].name}
           </span>
-          <span className="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
+          <span class="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
             {state?.scoreboard?.[0].score}
           </span>
-          <span className="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
+          <span class="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
             {state?.scoreboard?.[1].name}
           </span>
-          <span className="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
+          <span class="font-mono rounded-sm bg-slate-800 text-white py-0.5 px-1 mx-2">
             {state?.scoreboard?.[1].score}
           </span>
         </button>
       </div>
       {log.map((message) => (
-        <div className="p-2 rounded-md bg-slate-300">{message}</div>
+        <div class="p-2 rounded-md bg-slate-300">{message}</div>
       ))}
     </div>
   );
