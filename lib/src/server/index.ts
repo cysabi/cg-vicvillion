@@ -56,6 +56,10 @@ export class Server<S extends Record<string, unknown>> {
     };
   }
 
+  act(action: string, payload: any) {
+    return this.#handleAction(action, payload);
+  }
+
   #handleInit(scopes: string[][], ws: ServerWebSocket) {
     this.#clients.set(ws, scopes || [[]]);
     this.#emit({ ws });
