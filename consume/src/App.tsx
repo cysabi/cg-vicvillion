@@ -9,13 +9,11 @@ import {
 import "./index.css";
 import gsap from "gsap";
 import { SpringEasing } from "spring-easing";
-
-let spriteRef: HTMLDivElement | undefined;
-let carouselRef: HTMLDivElement | undefined;
-const [refs, setRefs] = createSignal<HTMLImageElement[]>([]);
+import idle from "./idle.gif";
+import run from "./run.gif";
 
 // every so often, make red circle go back and jump forward
-const offset = 360;
+const offset = 288;
 const gap = 100;
 const speed = 200;
 
@@ -26,9 +24,9 @@ function App() {
       const ctx = gsap.context(() => {
         const tl = gsap.timeline().fromTo(
           carouselRef!,
-          { x: -width },
+          { x: -overflowOffset() },
           {
-            x: -(width * 2),
+            x: -(overflowOffset() + width),
             repeat: Infinity,
             ease: "none",
             duration: width / speed,
@@ -39,54 +37,58 @@ function App() {
         );
         const jumpDir = gap / speed;
         let runningWidth = 0;
-        for (let ri = 0; ri < refs().length / 3; ri++) {
-          const ref = refs()[ri + refs().length / 3];
-          tl.to(
-            ref,
-            {
-              duration: 0,
-              repeatDelay: width / speed,
-              repeat: -1,
-              onRepeat: () => {
-                gsap
-                  .timeline()
-                  .fromTo(
-                    spriteRef!,
-                    {
-                      y: 0,
-                    },
-                    {
-                      y: -100,
-                      duration: jumpDir,
-                      ease: "circ.out",
-                      onStart: () => {
-                        spriteRef!.style.backgroundColor = "#fbbf24";
+        for (let ri = 1; ri < refs().length - 5; ri++) {
+          const ref = refs()[ri];
+          if (ref) {
+            tl.to(
+              ref,
+              {
+                duration: 0,
+                repeatDelay: width / speed,
+                repeat: -1,
+                onRepeat: () => {
+                  gsap
+                    .timeline()
+                    .fromTo(
+                      spriteRef!,
+                      {
+                        y: 0,
                       },
-                    }
-                  )
-                  .to(spriteRef!, {
-                    y: 0,
-                    duration: jumpDir,
-                    ease: "circ.in",
-                    onComplete: () => {
-                      spriteRef!.style.backgroundColor = "#d8b4fe";
-                    },
-                  })
-                  .fromTo(
-                    [ref, spriteRef],
-                    { y: 0 },
-                    {
-                      duration: duration / 1000,
-                      y: y.length,
-                      ease: "none",
-                      modifiers: { y: springY },
-                    }
-                  );
+                      {
+                        y: -100,
+                        duration: jumpDir,
+                        ease: "circ.out",
+                        onStart: () => {
+                          spriteIdleRef!.style.opacity = "1";
+                          spriteRunRef!.style.opacity = "0";
+                        },
+                      }
+                    )
+                    .to(spriteRef!, {
+                      y: 0,
+                      duration: jumpDir,
+                      ease: "circ.in",
+                      onComplete: () => {
+                        spriteIdleRef!.style.opacity = "0";
+                        spriteRunRef!.style.opacity = "1";
+                      },
+                    })
+                    .fromTo(
+                      [ref, spriteRef],
+                      { y: 0 },
+                      {
+                        duration: duration / 1000,
+                        y: y.length,
+                        ease: "none",
+                        modifiers: { y: springY },
+                      }
+                    );
+                },
               },
-            },
-            runningWidth / speed - jumpDir * 2
-          );
-          runningWidth += ref.getBoundingClientRect().width + gap;
+              runningWidth / speed - jumpDir * 2
+            );
+            runningWidth += ref.getBoundingClientRect().width + gap;
+          }
         }
       });
       onCleanup(() => ctx.kill());
@@ -102,7 +104,23 @@ function App() {
         }}
       >
         <div class="w-full flex flex-col">
-          <div ref={spriteRef} class="h-32 w-32 rounded-full bg-purple-300" />
+          <div
+            ref={spriteRef}
+            class="relative h-[300px] w-[300px] -translate-x-[35%]"
+          >
+            <img
+              class="absolute inset-0 opacity-0"
+              ref={spriteIdleRef}
+              style={{ "image-rendering": "pixelated" }}
+              src={idle}
+            />
+            <img
+              class="absolute inset-0"
+              ref={spriteRunRef}
+              style={{ "image-rendering": "pixelated" }}
+              src={run}
+            />
+          </div>
         </div>
         <div ref={carouselRef} class="flex h-96" style={{ gap: `${gap}px` }}>
           <For each={imgs()}>
@@ -124,11 +142,12 @@ function App() {
   );
 }
 
+// bento client
 type State = { type: string; data: ArrayBuffer }[];
 const client = new Client({
   initial: { files: [] as State },
 });
-const [state, setState] = createSignal<string[]>([]);
+
 client.dispatch = (state) => {
   setState(
     state.files.map((file) => {
@@ -141,25 +160,42 @@ client.dispatch = (state) => {
     })
   );
 };
-const imgs = createMemo(() => [...state(), ...state(), ...state()]);
-const deriveFullWidth = () =>
-  (refs().reduce((total, ref) => total + ref.getBoundingClientRect().width, 0) +
-    refs().length * gap) /
-  3;
+
+// img state
+const [state, setState] = createSignal<string[]>([]);
+const imgs = createMemo(() =>
+  state().length ? [state().at(-1), ...state(), ...state().slice(0, 5)] : []
+);
+
+// refs
+const [refs, setRefs] = createSignal<HTMLImageElement[]>([]);
+let carouselRef: HTMLDivElement | undefined;
+let spriteRef: HTMLDivElement | undefined;
+let spriteIdleRef: HTMLImageElement | undefined;
+let spriteRunRef: HTMLImageElement | undefined;
+
+// fullWidth manager
+const [fullWidth, setFullWidth] = createSignal(0);
+const [overflowOffset, setOverflowOffset] = createSignal(0);
 const syncFullWidth = (prev: number) => {
   if (Math.floor(prev) !== Math.floor(deriveFullWidth())) {
     setFullWidth(deriveFullWidth());
+    setOverflowOffset((refs()[0]?.getBoundingClientRect()?.width || 0) + gap);
     return true;
   }
   return false;
 };
+const deriveFullWidth = () =>
+  refs()
+    .slice(1, -5)
+    .reduce((total, ref) => total + ref.getBoundingClientRect().width + gap, 0);
 
-const [fullWidth, setFullWidth] = createSignal(deriveFullWidth());
-
+// gsap utils
 const [y, duration] = SpringEasing([0, 0.45], {
   easing: "spring(0.01, 1, 0.1, 100000)",
-  numPoints: 200,
+  numPoints: 2166,
 });
+
 const wrappedY = gsap.utils.wrap(y);
 const springY = (y: string) => wrappedY(parseFloat(y)) + "px";
 
