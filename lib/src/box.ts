@@ -1,8 +1,10 @@
 import type { Actions, ServerConfig } from "./types";
 import {
   createApp,
+  defineEventHandler,
   defineWebSocketHandler,
   fromNodeMiddleware,
+  serveStatic,
   toWebHandler,
 } from "h3";
 // import wsAdapter from "crossws/adapters/node";
@@ -13,6 +15,8 @@ import { createServer as createViteServer } from "vite";
 import { Server as BentoServer } from "./server";
 
 export type BentoBoxModel<S> = S | Actions<S>;
+
+const DEV_MODE = false;
 
 export const box = async <S extends Record<string, unknown>>(
   model: BentoBoxModel<S>,
@@ -34,12 +38,27 @@ export const box = async <S extends Record<string, unknown>>(
 
   const app = createApp();
 
-  // vite dev server
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    build: { target: "chrome95" },
-  });
-  app.use(fromNodeMiddleware(vite.middlewares));
+  if (DEV_MODE) {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      build: { target: "chrome95" },
+    });
+    app.use(fromNodeMiddleware(vite.middlewares));
+  } else {
+    app.use(
+      "/",
+      defineEventHandler((event) =>
+        serveStatic(event, {
+          getContents: (id) => Bun.file("dist/" + id),
+          getMeta: async (id) => {
+            const file = Bun.file("dist/" + id);
+            if (await file.exists())
+              return { size: file.size, mtime: file.lastModified };
+          },
+        })
+      )
+    );
+  }
 
   // websocket server
   const server = new BentoServer(config);

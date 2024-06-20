@@ -193,7 +193,7 @@ const deriveFullWidth = () =>
 // gsap utils
 const [y, duration] = SpringEasing([0, 0.45], {
   easing: "spring(0.01, 1, 0.1, 100000)",
-  numPoints: 2166,
+  numPoints: 2167,
 });
 
 const wrappedY = gsap.utils.wrap(y);
