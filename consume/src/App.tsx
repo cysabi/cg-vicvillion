@@ -13,7 +13,7 @@ import idle from "./idle.gif";
 import run from "./run.gif";
 
 // every so often, make red circle go back and jump forward
-const offset = 384;
+const offset = 384 * 1.5;
 const gap = 100;
 const speed = 192;
 
@@ -39,7 +39,6 @@ function App() {
         let runningWidth = 0;
         for (let ri = 1; ri < refs().length - 5; ri++) {
           const ref = refs()[ri];
-          const popRef = popRefs()[ri];
           if (ref) {
             tl.to(
               ref,
@@ -48,7 +47,7 @@ function App() {
                 repeatDelay: width / speed,
                 repeat: -1,
                 onRepeat: () => {
-                  gsap
+                  const subtl = gsap
                     .timeline()
                     .fromTo(
                       spriteRef!,
@@ -74,13 +73,18 @@ function App() {
                         spriteRunRef!.style.opacity = "1";
                       },
                     })
-                    .fromTo([ref, spriteRef], { y: 0 }, springBounce)
+                    .fromTo([ref, spriteRef], { y: 0 }, springBounce);
+                  const popRef = [popRefs()[ri]];
+                  if (ri === refs().length - 5 - 1) {
+                    popRef.push(popRefs()[0]);
+                  }
+                  subtl
                     .fromTo(popRef, { y: 0 }, springFloat, "<")
                     .to(popRef, { opacity: 1 }, "<")
                     .to(popRef, {
                       duration: 5,
                       onComplete: () => {
-                        popRef.style.opacity = "0";
+                        popRef.forEach((ref) => (ref.style.opacity = "0"));
                       },
                     });
                 },
