@@ -13,9 +13,9 @@ import idle from "./idle.gif";
 import run from "./run.gif";
 
 // every so often, make red circle go back and jump forward
-const offset = 288;
+const offset = 384;
 const gap = 100;
-const speed = 200;
+const speed = 192;
 
 function App() {
   createEffect(() => {
@@ -39,6 +39,7 @@ function App() {
         let runningWidth = 0;
         for (let ri = 1; ri < refs().length - 5; ri++) {
           const ref = refs()[ri];
+          const popRef = popRefs()[ri];
           if (ref) {
             tl.to(
               ref,
@@ -73,16 +74,15 @@ function App() {
                         spriteRunRef!.style.opacity = "1";
                       },
                     })
-                    .fromTo(
-                      [ref, spriteRef],
-                      { y: 0 },
-                      {
-                        duration: duration / 1000,
-                        y: y.length,
-                        ease: "none",
-                        modifiers: { y: springY },
-                      }
-                    );
+                    .fromTo([ref, spriteRef], { y: 0 }, springBounce)
+                    .fromTo(popRef, { y: 0 }, springFloat, "<")
+                    .to(popRef, { opacity: 1 }, "<")
+                    .to(popRef, {
+                      duration: 5,
+                      onComplete: () => {
+                        popRef.style.opacity = "0";
+                      },
+                    });
                 },
               },
               runningWidth / speed - jumpDir * 2
@@ -125,15 +125,29 @@ function App() {
         <div ref={carouselRef} class="flex h-96" style={{ gap: `${gap}px` }}>
           <For each={imgs()}>
             {(img, i) => (
-              <img
-                ref={(ref) => {
-                  const newRefs = [...refs()];
-                  newRefs[i()] = ref;
-                  setRefs(newRefs);
-                }}
-                class="object-contain"
-                src={img}
-              />
+              <div class="relative h-full min-w-fit">
+                <img
+                  ref={(ref) => {
+                    const newRefs = [...refs()];
+                    newRefs[i()] = ref;
+                    setRefs(newRefs);
+                  }}
+                  class="h-full min-w-fit"
+                  src={img?.src}
+                />
+                <div class="absolute bottom-0 inset-x-0 -translate-y-[43rem] flex flex-col items-center font-['Pixelify_Sans'] justify-start">
+                  <div
+                    ref={(ref) => {
+                      const newRefs = [...popRefs()];
+                      newRefs[i()] = ref;
+                      setPopRefs(newRefs);
+                    }}
+                    class="px-5 py-2 opacity-0 leading-none bg-purple-[#5e3a83]/80 outline-[8px] text-white outline-purple-[#5e3a83]/80 border-white border-[5px] text-5xl"
+                  >
+                    {img?.name}
+                  </div>
+                </div>
+              </div>
             )}
           </For>
         </div>
@@ -143,11 +157,12 @@ function App() {
 }
 
 // bento client
-type State = { type: string; data: ArrayBuffer }[];
+type State = { name: string; type: string; data: ArrayBuffer }[];
 const client = new Client({
   initial: { files: [] as State },
 });
 
+const [state, setState] = createSignal([] as { name: string; src: string }[]);
 client.dispatch = (state) => {
   setState(
     state.files.map((file) => {
@@ -156,19 +171,22 @@ client.dispatch = (state) => {
       for (var i = 0; i < bytes.byteLength; i++) {
         binary += String.fromCharCode(bytes[i]);
       }
-      return `data:${file.type};base64,${window.btoa(binary)}`;
+      return {
+        name: file.name,
+        src: `data:${file.type};base64,${window.btoa(binary)}`,
+      };
     })
   );
 };
 
 // img state
-const [state, setState] = createSignal<string[]>([]);
 const imgs = createMemo(() =>
   state().length ? [state().at(-1), ...state(), ...state().slice(0, 5)] : []
 );
 
 // refs
 const [refs, setRefs] = createSignal<HTMLImageElement[]>([]);
+const [popRefs, setPopRefs] = createSignal<HTMLDivElement[]>([]);
 let carouselRef: HTMLDivElement | undefined;
 let spriteRef: HTMLDivElement | undefined;
 let spriteIdleRef: HTMLImageElement | undefined;
@@ -191,12 +209,40 @@ const deriveFullWidth = () =>
     .reduce((total, ref) => total + ref.getBoundingClientRect().width + gap, 0);
 
 // gsap utils
-const [y, duration] = SpringEasing([0, 0.45], {
-  easing: "spring(0.01, 1, 0.1, 100000)",
-  numPoints: 2167,
-});
+const springBounce = (() => {
+  const [y, duration] = SpringEasing([0, 0.45], {
+    easing: "spring(0.01, 1, 0.1, 100000)",
+    numPoints: 2167,
+  });
+  const wrappedY = gsap.utils.wrap(y);
+  const springY = (y: string) => wrappedY(parseFloat(y)) + "px";
 
-const wrappedY = gsap.utils.wrap(y);
-const springY = (y: string) => wrappedY(parseFloat(y)) + "px";
+  return {
+    duration: duration / 1000,
+    y: y.length,
+    ease: "none",
+    modifiers: { y: springY },
+  };
+})();
+
+const springFloat = (() => {
+  const [y, duration] = SpringEasing([100, 0], {
+    easing: "spring(0.45, 100, 500, 0)",
+    numPoints: 1000,
+  });
+  const wrappedY = gsap.utils.wrap(y);
+  const springY = (y: string) => {
+    const val = wrappedY(parseFloat(y)) + "px";
+    if (val === "100px") return "0px";
+    return val;
+  };
+
+  return {
+    duration: duration / 1000,
+    y: y.length,
+    ease: "none",
+    modifiers: { y: springY },
+  };
+})();
 
 export default App;

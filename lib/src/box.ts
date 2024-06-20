@@ -7,16 +7,13 @@ import {
   serveStatic,
   toWebHandler,
 } from "h3";
-// import wsAdapter from "crossws/adapters/node";
 import wsAdapter from "crossws/adapters/bun";
-import { toNodeListener } from "h3";
-import { createServer } from "node:http";
-import { createServer as createViteServer } from "vite";
 import { Server as BentoServer } from "./server";
+import { join } from "path";
 
 export type BentoBoxModel<S> = S | Actions<S>;
 
-const DEV_MODE = false;
+const DEV_MODE = true;
 
 export const box = async <S extends Record<string, unknown>>(
   model: BentoBoxModel<S>,
@@ -39,6 +36,7 @@ export const box = async <S extends Record<string, unknown>>(
   const app = createApp();
 
   if (DEV_MODE) {
+    const createViteServer = (await import("vite")).createServer;
     const vite = await createViteServer({
       server: { middlewareMode: true },
       build: { target: "chrome95" },
@@ -49,9 +47,9 @@ export const box = async <S extends Record<string, unknown>>(
       "/",
       defineEventHandler((event) =>
         serveStatic(event, {
-          getContents: (id) => Bun.file("dist/" + id),
+          getContents: (id) => Bun.file(join("dist", id)),
           getMeta: async (id) => {
-            const file = Bun.file("dist/" + id);
+            const file = Bun.file(join("dist", id));
             if (await file.exists())
               return { size: file.size, mtime: file.lastModified };
           },
@@ -66,10 +64,6 @@ export const box = async <S extends Record<string, unknown>>(
   app.use("/_ws", defineWebSocketHandler(server.wss));
 
   // serve
-  // const nodeServer = createServer(toNodeListener(app)).listen(4400);
-  // const { handleUpgrade } = wsAdapter(app.websocket);
-  // nodeServer.on("upgrade", handleUpgrade);
-
   const { handleUpgrade, websocket } = wsAdapter(app.websocket);
   const handleHttp = toWebHandler(app);
   return Bun.serve({
