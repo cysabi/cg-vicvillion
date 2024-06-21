@@ -36,6 +36,7 @@ function App() {
           }
         );
         const jumpDir = gap / speed;
+        const jumpBefore = 20 / speed;
         let runningWidth = 0;
         for (let ri = 1; ri < refs().length - 5; ri++) {
           const ref = refs()[ri];
@@ -56,7 +57,7 @@ function App() {
                       },
                       {
                         y: -100,
-                        duration: jumpDir,
+                        duration: jumpDir + jumpBefore,
                         ease: "circ.out",
                         onStart: () => {
                           spriteIdleRef!.style.opacity = "1";
@@ -89,7 +90,7 @@ function App() {
                     });
                 },
               },
-              runningWidth / speed - jumpDir * 2
+              runningWidth / speed - (jumpDir * 2 + jumpBefore)
             );
             runningWidth += ref.getBoundingClientRect().width + gap;
           }
@@ -110,7 +111,7 @@ function App() {
         <div class="w-full flex flex-col">
           <div
             ref={spriteRef}
-            class="relative h-[300px] w-[300px] -translate-x-[35%]"
+            class="relative h-[300px] w-[300px] translate-x-[-97.5px]"
           >
             <img
               class="absolute inset-0 opacity-0"
