@@ -1,7 +1,7 @@
 import bento from "bento";
 import { readdir } from "node:fs/promises";
 import { watch } from "fs";
-import { join } from "path";
+import { join, sep } from "path";
 import { consola } from "consola";
 
 let countdown: Timer | null = null;
@@ -41,7 +41,7 @@ bento.box<State>(
         paths.map(async (path) => {
           const file = Bun.file(join(dir, path));
           return {
-            name: file.name?.split("/")?.at(-1)?.split(".")?.at(0),
+            name: file.name?.split(sep)?.at(-1)?.split(".")?.at(0),
             type: file.type,
             data: await file.arrayBuffer(),
           };
