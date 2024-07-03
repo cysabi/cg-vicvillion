@@ -111,7 +111,8 @@ function App() {
         <div class="w-full flex flex-col">
           <div
             ref={spriteRef}
-            class="relative h-[300px] w-[300px] translate-x-[-97.5px]"
+            class="relative h-[300px] w-[300px]"
+            style={{ transform: "translateX(-97.5px)" }}
           >
             <img
               class="absolute inset-0 opacity-0"
@@ -142,7 +143,7 @@ function App() {
                 />
                 <div
                   class="absolute bottom-0 inset-x-0 flex flex-col items-center font-['Pixelify_Sans'] justify-start"
-                  style={{ translate: "0 -43rem" }}
+                  style={{ transform: "translateY(-43rem)" }}
                 >
                   <div
                     ref={(ref) => {
