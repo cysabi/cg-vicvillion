@@ -1,10 +1,11 @@
 # `cg-vicvillion`
-> Staring soon carousel for [@Vicvillon](https://www.youtube.com/@Vicvillon)!!
+> staring soon carousel for [@Vicvillon](https://www.youtube.com/@Vicvillon)!!
 
-Carousel with a sprite running along some fan art
+A carousel with the cutest sprite running along some fan art
+- Using a beta version of [bento](https://github.com/cysabi/bento)!
 
 ## usage
-Download the most recent release, unzip, and run!
+Download `cg-vicvillion.zip` from the most recent release, unzip, and run!
 - Create an `art/` folder and fill it up with art! the name of the file corresponds to the artist name that is shown.
 
 ## local setup
@@ -13,9 +14,9 @@ Download the most recent release, unzip, and run!
 
 ### building for production
 - There are 2 parts: the server binary, and the static dist folder
-- To build `dist/`, run `bun run build`
-- To compile, run `bun run compile`
-- Move `/dist`, `/art`, `carousel.exe` into a folder and zip it!
+- `bun run build` to build `dist/`
+- `bun run compile` to compile the bento server for windows, make sure to set `DEV_ENV=false`!
+- `bun run zip` to zip up `dist/`, `art/`, and `carousel.exe`!
 
 ---
 
