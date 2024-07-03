@@ -140,7 +140,10 @@ function App() {
                   class="h-full min-w-fit"
                   src={img?.src}
                 />
-                <div class="absolute bottom-0 inset-x-0 -translate-y-[43rem] flex flex-col items-center font-['Pixelify_Sans'] justify-start">
+                <div
+                  class="absolute bottom-0 inset-x-0 flex flex-col items-center font-['Pixelify_Sans'] justify-start"
+                  style={{ translate: "0 -43rem" }}
+                >
                   <div
                     ref={(ref) => {
                       const newRefs = [...popRefs()];
