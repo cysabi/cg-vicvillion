@@ -9,7 +9,9 @@ import {
 import "./index.css";
 import gsap from "gsap";
 import { SpringEasing } from "spring-easing";
-import idle from "./idle.gif";
+import up from "./up.png";
+import down from "./down.png";
+import land from "./land.png";
 import run from "./run.gif";
 
 // every so often, make red circle go back and jump forward
@@ -50,6 +52,13 @@ function App() {
                 onRepeat: () => {
                   const subtl = gsap
                     .timeline()
+                    .to(spriteLandRef!, {
+                      duration: 1 / 10,
+                      onStart: () => {
+                        spriteRunRef!.style.opacity = "0";
+                        spriteLandRef!.style.opacity = "1";
+                      },
+                    })
                     .fromTo(
                       spriteRef!,
                       {
@@ -60,8 +69,8 @@ function App() {
                         duration: jumpDir + jumpBefore,
                         ease: "circ.out",
                         onStart: () => {
-                          spriteIdleRef!.style.opacity = "1";
-                          spriteRunRef!.style.opacity = "0";
+                          spriteLandRef!.style.opacity = "0";
+                          spriteUpRef!.style.opacity = "1";
                         },
                       }
                     )
@@ -69,12 +78,24 @@ function App() {
                       y: 0,
                       duration: jumpDir,
                       ease: "circ.in",
+                      onStart: () => {
+                        spriteUpRef!.style.opacity = "0";
+                        spriteDownRef!.style.opacity = "1";
+                      },
+                    })
+                    .to(spriteLandRef!, {
+                      onStart: () => {
+                        spriteDownRef!.style.opacity = "0";
+                        spriteLandRef!.style.opacity = "1";
+                      },
+                      duration: 1 / 10,
                       onComplete: () => {
-                        spriteIdleRef!.style.opacity = "0";
+                        spriteLandRef!.style.opacity = "0";
                         spriteRunRef!.style.opacity = "1";
                       },
                     })
-                    .fromTo([ref, spriteRef], { y: 0 }, springBounce);
+                    .fromTo([ref, spriteRef], { y: 0 }, springBounce, "<");
+
                   const popRef = [popRefs()[ri]];
                   if (ri === refs().length - 5 - 1) {
                     popRef.push(popRefs()[0]);
@@ -90,7 +111,7 @@ function App() {
                     });
                 },
               },
-              runningWidth / speed - (jumpDir * 2 + jumpBefore)
+              runningWidth / speed - (jumpDir * 2 + jumpBefore + 1 / 10)
             );
             runningWidth += ref.getBoundingClientRect().width + gap;
           }
@@ -116,9 +137,21 @@ function App() {
           >
             <img
               class="absolute inset-0 opacity-0"
-              ref={spriteIdleRef}
+              ref={spriteUpRef}
               style={{ "image-rendering": "pixelated" }}
-              src={idle}
+              src={up}
+            />
+            <img
+              class="absolute inset-0 opacity-0"
+              ref={spriteDownRef}
+              style={{ "image-rendering": "pixelated" }}
+              src={down}
+            />
+            <img
+              class="absolute inset-0 opacity-0"
+              ref={spriteLandRef}
+              style={{ "image-rendering": "pixelated" }}
+              src={land}
             />
             <img
               class="absolute inset-0"
@@ -198,7 +231,9 @@ const [refs, setRefs] = createSignal<HTMLImageElement[]>([]);
 const [popRefs, setPopRefs] = createSignal<HTMLDivElement[]>([]);
 let carouselRef: HTMLDivElement | undefined;
 let spriteRef: HTMLDivElement | undefined;
-let spriteIdleRef: HTMLImageElement | undefined;
+let spriteUpRef: HTMLImageElement | undefined;
+let spriteDownRef: HTMLImageElement | undefined;
+let spriteLandRef: HTMLImageElement | undefined;
 let spriteRunRef: HTMLImageElement | undefined;
 
 // fullWidth manager

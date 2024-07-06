@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "bun ./bento.box.ts",
     "build": "tsc && vite build",
     "compile": "bun build --compile --target=bun-windows-x64 ./bento.box.ts --outfile carousel",
     "zip": "zip -r cg-vicvillion.zip carousel.exe dist art",
