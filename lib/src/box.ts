@@ -33,13 +33,13 @@ export const box = async <S extends Record<string, unknown>>(
 
   const app = createApp();
 
-  if (true) {
-    const createViteServer = (await import("vite")).createServer;
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      build: { target: "chrome95" },
-    });
-    app.use(fromNodeMiddleware(vite.middlewares));
+  if (false) {
+    // const createViteServer = (await import("vite")).createServer;
+    // const vite = await createViteServer({
+    //   server: { middlewareMode: true },
+    //   build: { target: "chrome95" },
+    // });
+    // app.use(fromNodeMiddleware(vite.middlewares));
   } else {
     app.use(
       "/",
