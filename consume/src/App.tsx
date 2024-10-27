@@ -13,6 +13,15 @@ import up from "./up.png";
 import down from "./down.png";
 import land from "./land.png";
 import run from "./run.gif";
+import city1 from "./city/1.png";
+import city2 from "./city/2.png";
+import city3 from "./city/3.png";
+import city4 from "./city/4.png";
+import city5 from "./city/5.png";
+import city6 from "./city/6.png";
+import speechL from "./speech-l.png";
+import speechM from "./speech-m.png";
+import speechR from "./speech-r.png";
 
 // every so often, make red circle go back and jump forward
 const offset = 384 * 1.5;
@@ -121,8 +130,31 @@ function App() {
     }
   });
 
+  const [speech, setSpeech] = createSignal("starting soon!");
+
   return (
     <div class="absolute inset-0 m-auto h-[1080px] w-[1920px] outline-red-500 outline-dashed outline-2 outline-offset-2 font-mono">
+      <div class="absolute inset-0 h-full w-full">
+        {[city1, city2, city3, city4, city5, city6].map((src, i) => (
+          <div
+            ref={(ref) => {
+              gsap.to(ref, {
+                backgroundPositionX: "-1920px",
+                repeat: -1,
+                duration: 100 - i * 15,
+                ease: "none",
+              });
+            }}
+            class="absolute inset-0 h-full w-full"
+            style={{
+              "background-repeat": "repeat-x",
+              "background-size": "contain",
+              "background-image": `url('${src}')`,
+              "image-rendering": "pixelated",
+            }}
+          />
+        ))}
+      </div>
       <div
         class="flex flex-col justify-end h-full py-16"
         style={{
@@ -135,6 +167,42 @@ function App() {
             class="relative h-[300px] w-[300px]"
             style={{ transform: "translateX(-97.5px)" }}
           >
+            <div
+              style={{ transform: "translateX(14.5rem) translateY(-8.5rem)" }}
+              class="absolute bottom-0 left-0"
+            >
+              <div class="relative flex">
+                <div
+                  class={`whitespace-nowrap h-32 flex items-center z-10 px-5 font-['Pixelify_Sans'] text-5xl font-semibold`}
+                >
+                  {speech()}
+                </div>
+                <input
+                  class="absolute inset-0 whitespace-nowrap h-32 flex items-center z-10 px-5 font-['Pixelify_Sans'] text-5xl font-semibold opacity-0"
+                  oninput={(e) => {
+                    setSpeech(e.target.value);
+                  }}
+                />
+                <div class="flex absolute inset-0 min-w-24">
+                  <img
+                    class="h-32 shrink-0 grow-0"
+                    style={{ "image-rendering": "pixelated" }}
+                    src={speechL}
+                  ></img>
+                  <img
+                    class="h-32 flex-1 w-full"
+                    style={{ "image-rendering": "pixelated" }}
+                    src={speechM}
+                  ></img>
+                  <img
+                    class="h-32 shrink-0 grow-0"
+                    style={{ "image-rendering": "pixelated" }}
+                    src={speechR}
+                  ></img>
+                </div>
+              </div>
+            </div>
+
             <img
               class="absolute inset-0 opacity-0"
               ref={spriteUpRef}
@@ -184,7 +252,7 @@ function App() {
                       newRefs[i()] = ref;
                       setPopRefs(newRefs);
                     }}
-                    class="px-5 py-2 opacity-0 leading-none bg-purple-[#5e3a83]/80 outline-[8px] text-white outline-purple-[#5e3a83]/80 border-white border-[5px] text-5xl"
+                    class="px-5 py-2 opacity-0 leading-none bg-purple-[#5e3a83] outline-[8px] text-white outline-purple-[#5e3a83] border-white border-[5px] text-5xl"
                   >
                     {img?.name}
                   </div>
